@@ -1,0 +1,15 @@
+version: "3.5"
+
+services:
+  e4l-frontend:
+    restart: always
+    image: ${CI_REGISTRY_IMAGE}:latest
+    container_name: e4l-frontend-staging
+    ports:
+      - 8884:80
+    volumes:
+      - /opt/e4l-news:/usr/share/nginx/news
+    environment:
+      - PUBLIC_PATH=/e4l
+      - API_URL=https://juno.uni.lux/e4lapi
+      - TZ=Europe/Luxembourg

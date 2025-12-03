@@ -1,0 +1,97 @@
+before_script:
+  - export CURRENT_DATETIME=`date +"%Y%m%d-%H%M%S"`
+
+stages:
+  - build
+  - docker build
+  - deploy staging
+  - deploy pre-prod
+  - deploy prod
+
+services:
+  - name: docker:dind
+
+build:
+  rules:
+  - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  image: node:22
+  stage: build
+  tags: [e4l-server]
+  script: npm install && npm run build
+  cache:
+    key: "$CI_COMMIT_REF_NAME"
+    policy: push
+    paths:
+      - e4l.frontend.docker/web/dist
+
+docker_build:
+  rules:
+  - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  image: docker:latest
+  stage: docker build
+  tags: [e4l-server]
+  script:
+    #- docker login -u "$DOCKER_HUB_USER" -p "$DOCKER_HUB_PASSWORD"
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+    - docker build --pull -t "$CI_REGISTRY_IMAGE:latest" ./e4l.frontend.docker/web
+    - docker push "$CI_REGISTRY_IMAGE:latest"
+  cache:
+    key: "$CI_COMMIT_REF_NAME"
+    policy: pull
+    paths:
+      - e4l.frontend.docker/web/dist
+
+deploy_staging:
+  rules:
+  - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  image: tmaier/docker-compose:latest
+  stage: deploy staging
+  tags: [juno]
+  script:
+    #- docker login -u "$DOCKER_HUB_USER" -p "$DOCKER_HUB_PASSWORD"
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+    - docker-compose -f ./e4l.frontend.docker/docker-compose.frontend.staging.yml pull
+    - docker-compose -f ./e4l.frontend.docker/docker-compose.frontend.staging.yml up -d
+  environment:
+    name: staging
+    url: https://juno.uni.lux/e4l/
+
+deploy_preprod:
+  image: tmaier/docker-compose:latest
+  stage: deploy pre-prod
+  tags: [e4l-server]
+  script:
+    #- docker login -u "$DOCKER_HUB_USER" -p "$DOCKER_HUB_PASSWORD"
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+    - docker pull "$CI_REGISTRY_IMAGE:latest"
+    - docker tag "$CI_REGISTRY_IMAGE:latest" "$CI_REGISTRY_IMAGE:rc"
+    - docker push "$CI_REGISTRY_IMAGE:rc"
+    - docker-compose -f ./e4l.frontend.docker/docker-compose.frontend.pre-prod.yml pull
+    - docker compose -f ./e4l.frontend.docker/docker-compose.frontend.pre-prod.yml up -d
+  environment:
+    name: preprod
+    url: https://stage-e4l.uni.lu/
+  only:
+    - master
+
+deploy_prod:
+  image: tmaier/docker-compose:latest
+  stage: deploy prod
+  tags: [e4l-server]
+  when: manual
+  script:
+    #- docker login -u "$DOCKER_HUB_USER" -p "$DOCKER_HUB_PASSWORD"
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+    - docker pull "$CI_REGISTRY_IMAGE:rc"
+    - docker tag "$CI_REGISTRY_IMAGE:rc" "$CI_REGISTRY_IMAGE:release"
+    - docker push "$CI_REGISTRY_IMAGE:release"
+    - docker-compose -f ./e4l.frontend.docker/docker-compose.frontend.prod.yml pull
+    - docker compose -f ./e4l.frontend.docker/docker-compose.frontend.prod.yml up -d
+  environment:
+    name: prod
+    url: https://e4l.uni.lu/
+  only:
+    - master
