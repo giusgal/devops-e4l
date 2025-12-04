@@ -1,0 +1,13 @@
+stages:
+  - build
+
+build-frontend:
+  image: node:22
+  stage: build
+  tags:
+    - integration
+  script:
+    - npm install && npm run build
+  cache:
+    paths:
+      - e4l.frontend.docker/web/dist
