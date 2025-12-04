@@ -1,0 +1,53 @@
+---
+
+- name: Update repositories cache. 
+  apt:
+    update_cache: yes
+
+- name: Safe system upgrade via aptitude.
+  apt: 
+    upgrade: safe
+
+
+- name: Install packages required by Docker.
+  apt:
+    name: "{{ packages }}"
+  vars:
+    packages:
+    - apt-transport-https
+    - ca-certificates
+    - curl
+    - software-properties-common
+
+
+- name: Add Docker GPG apt Key
+  apt_key:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    state: present
+
+- name: Add Docker Repository
+  apt_repository:
+    repo: deb https://download.docker.com/linux/ubuntu focal stable
+    state: present
+
+- name: Update repositories cache. 
+  apt:
+    update_cache: yes    
+
+    
+- name: Install Docker packages. 
+  apt:
+    name: "{{ dockerpackages }}"
+  vars:
+    dockerpackages:
+    - docker-ce 
+    - docker-ce-cli
+    - containerd.io
+    - docker-buildx-plugin
+    - docker-compose-plugin
+    
+    
+- name: Add users to docker group. 
+  shell: "usermod -aG docker {{ item }}"
+  with_items:
+    - vagrant
