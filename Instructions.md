@@ -1,12 +1,62 @@
 # Instructions
 
 ## Set tls for docker registry on gitlab (to automate)
-Follow tutorial on gitlab site: `https://docs.gitlab.com/administration/packages/container_registry/?tab=Linux+package+%28Omnibus%29#configure-container-registry-under-an-existing-gitlab-domain`
-To create an ssl certificate do this:
+1. Go inside the integration server VM
+1. Create a file `san.cnf` and paste the following content
+```bash
+[ req ]
+default_bits       = 4096
+prompt             = no
+default_md         = sha256
+distinguished_name = dn
+req_extensions     = req_ext
+
+[ dn ]
+CN = 192.168.56.9
+
+[ req_ext ]
+subjectAltName = @alt_names
+
+[ alt_names ]
+IP.1 = 192.168.56.9
+```
+1. Generate certificate
+```bash
+openssl req -x509 -nodes -newkey rsa:4096 \
+  -keyout 192.168.56.9.key \
+  -out 192.168.56.9.crt \
+  -days 365 \
+  -config san.cnf \
+  -extensions req_ext
+```
+1. Install certificate for gitlab with the following commands
 ```bash
 sudo mkdir -p /etc/gitlab/ssl
-sudo openssl req -new -x509 -days 365 -nodes \
-  -out /etc/gitlab/ssl/192.168.56.9.crt \
-  -keyout /etc/gitlab/ssl/192.168.56.9.key
+sudo cp 192.168.56.9.crt /etc/gitlab/ssl/
+sudo cp 192.168.56.9.key /etc/gitlab/ssl/
+sudo chmod 600 /etc/gitlab/ssl/192.168.56.9.key
 ```
-Then reconfigure gitlab.
+1. Modify `/etc/gitlab/gitlab.rb` with the following lines
+```bash
+registry_external_url "https://192.168.56.9:5050"
+
+registry_nginx['enable'] = true # IMPORTANT!!!
+registry_nginx['ssl_certificate']     = "/etc/gitlab/ssl/192.168.56.9.crt"
+registry_nginx['ssl_certificate_key'] = "/etc/gitlab/ssl/192.168.56.9.key"
+```
+1. Reload gitlab
+```bash
+sudo gitlab-ctl reconfigure
+sudo gitlab-ctl restart
+```
+1. Install certificate for Docker (IMPORTANT!!!)
+```bash
+sudo mkdir -p /etc/docker/certs.d/192.168.56.9:5050
+sudo cp /etc/gitlab/ssl/192.168.56.9.crt /etc/docker/certs.d/192.168.56.9:5050/ca.crt
+sudo systemctl restart docker
+```
+1. Test docker
+username and password are those of your gitlab user
+```bash
+docker login 192.168.56.9:5050
+```

@@ -7,7 +7,7 @@ VAGRANTFILE_API_VERSION = "2"
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
  
-  config.vm.box = "ubuntu/xenial64"
+  config.vm.box = "ubuntu/jammy64"
   config.vm.hostname = "registry-vm"
   config.vm.box_download_insecure = false 
   
@@ -19,7 +19,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   #config.vm.network "forwarded_port", guest: 5001, host: 8081
   #config.vm.network "forwarded_port", guest: 443, host: 8443
 
-  config.vm.network :private_network, ip: "192.168.33.8"
+  config.vm.network :private_network, ip: "192.168.56.8"
 
   config.vm.synced_folder "../../data", "/vagrant_data"
 
