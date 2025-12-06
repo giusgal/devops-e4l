@@ -77,7 +77,7 @@
         <mxCell id="p78S9JgEDvcvOyy5TOev-22" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;endArrow=none;endFill=0;dashed=1;" parent="1" source="p78S9JgEDvcvOyy5TOev-21" target="p78S9JgEDvcvOyy5TOev-17" edge="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="p78S9JgEDvcvOyy5TOev-21" value="&lt;div&gt;build, unit tests, docker packaging and push on registry.&lt;/div&gt;&lt;div&gt;Problem: DIND&lt;/div&gt;&lt;div&gt;Solution: Another runner with shell executor&lt;/div&gt;" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;" parent="1" vertex="1">
+        <mxCell id="p78S9JgEDvcvOyy5TOev-21" value="&lt;div&gt;build, unit tests, docker packaging and push on registry.&lt;/div&gt;&lt;div&gt;Problem: DIND&lt;/div&gt;&lt;div&gt;Solution: Another runner with shell executor or see buildkit/buildah&lt;/div&gt;" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;" parent="1" vertex="1">
           <mxGeometry x="190" y="690" width="150" height="110" as="geometry" />
         </mxCell>
         <mxCell id="p78S9JgEDvcvOyy5TOev-23" value="&lt;div&gt;GitLab runner&lt;/div&gt;&lt;div&gt;(shell executor)&lt;/div&gt;&lt;div&gt;- pulls image&lt;/div&gt;&lt;div&gt;- tests it&lt;/div&gt;" style="shape=module;align=left;spacingLeft=20;align=center;verticalAlign=top;whiteSpace=wrap;html=1;" parent="1" vertex="1">
@@ -114,7 +114,7 @@
         <mxCell id="p78S9JgEDvcvOyy5TOev-36" value="Prod here will be exactly the same as staging with the only difference of the GitLab Runner (maybe)" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;" parent="1" vertex="1">
           <mxGeometry x="715" y="1040" width="155" height="140" as="geometry" />
         </mxCell>
-        <mxCell id="z_PTMJGSdAO6KuIvEbrc-1" value="" style="verticalLabelPosition=bottom;verticalAlign=top;html=1;shape=mxgraph.basic.x;fillColor=#a20025;fontColor=#ffffff;strokeColor=#6F0000;" vertex="1" parent="1">
+        <mxCell id="z_PTMJGSdAO6KuIvEbrc-1" value="" style="verticalLabelPosition=bottom;verticalAlign=top;html=1;shape=mxgraph.basic.x;fillColor=#a20025;fontColor=#ffffff;strokeColor=#6F0000;" parent="1" vertex="1">
           <mxGeometry x="590" y="332.5" width="390" height="315" as="geometry" />
         </mxCell>
       </root>
