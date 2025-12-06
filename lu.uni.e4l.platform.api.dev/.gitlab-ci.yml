@@ -1,15 +1,34 @@
 stages:
   - build
+  - package
 
 build_backend:
   image: gradle:8.3
   stage: build
   tags:
     - integration
+  variables:
+    GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
+  cache:
+    key: "gradle-cache"
+    paths:
+      - .gradle/wrapper
+      - .gradle/caches
   script:
     - gradle clean build bootJar --build-cache --no-daemon
   artifacts:
-    name: "backend-jar-$CI_COMMIT_SHORT_SHA"
     paths:
       - build/libs/*.jar
     expire_in: 1 weeks
+
+package_docker_image:
+  stage: package
+  tags:
+    - packaging
+  dependencies:
+    - build_backend
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
+  script:
+    - docker build -t $CI_REGISTRY_IMAGE:latest .
+    - docker push $CI_REGISTRY_IMAGE:latest
