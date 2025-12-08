@@ -1,5 +1,8 @@
 # Instructions
 
+## Important
+1. Add the gitlab-runner to the docker group
+
 ## Set tls for docker registry on gitlab (to automate)
 1. Go inside the integration server VM
 1. Create a file `san.cnf` and paste the following content
