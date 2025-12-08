@@ -2,6 +2,10 @@
 
 ## Important
 1. Add the gitlab-runner to the docker group
+```bash
+sudo usermod -aG docker gitlab-runner
+sudo systemctl restart gitlab-runner
+```
 
 ## Set tls for docker registry on gitlab (to automate)
 1. Go inside the integration server VM
