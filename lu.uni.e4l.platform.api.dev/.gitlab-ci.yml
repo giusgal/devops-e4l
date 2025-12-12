@@ -1,34 +1,56 @@
 stages:
-  - build
-  - package
+  - commit
+  - staging
+  - production
+  # - test
 
 build_backend:
-  image: gradle:8.3
-  stage: build
+  image: gradle:8.3-jdk17
+  stage: commit
   tags:
     - integration
   variables:
     GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
   cache:
-    key: "gradle-cache"
+    key: gradle-cache
     paths:
       - .gradle/wrapper
       - .gradle/caches
   script:
-    - gradle clean build bootJar --build-cache --no-daemon
+    # Compile and package WITHOUT tests
+    - gradle clean assemble --build-cache --no-daemon
   artifacts:
+    name: "backend-build-$CI_COMMIT_SHORT_SHA"
     paths:
-      - build/libs/*.jar
-    expire_in: 1 weeks
+      - build/               # this makes compiled classes available to test job
+    expire_in: 1 week
 
-package_docker_image:
-  stage: package
+test_backend:
+  image: gradle:8.3-jdk17
+  stage: commit
   tags:
-    - packaging
+    - integration
+  variables:
+    GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
+  cache:
+    key: gradle-cache
+    paths:
+      - .gradle/wrapper
+      - .gradle/caches
   dependencies:
-    - build_backend
-  before_script:
-    - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
+    - build_backend        # pull compiled artifacts
   script:
-    - docker build -t $CI_REGISTRY_IMAGE:latest .
-    - docker push $CI_REGISTRY_IMAGE:latest
+    # Run tests ONLY — no rebuild
+    - gradle test --no-daemon --info
+
+# package_docker_image:
+#   stage: commit
+#   tags:
+#     - packaging
+#   dependencies:
+#     - test_backend
+#   before_script:
+#     - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
+#   script:
+#     - docker build -t $CI_REGISTRY_IMAGE:latest .
+#     - docker push $CI_REGISTRY_IMAGE:latest
