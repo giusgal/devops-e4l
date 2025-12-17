@@ -60,9 +60,9 @@ tasks.withType(JavaCompile) {
     options.compilerArgs += ["-Xlint:deprecation", "-Xlint:-options"]
 }
 
-tasks.withType(Test) {
-    testLogging {
-        events "passed", "skipped", "failed"
-        exceptionFormat "full"
-    }
-}
+// tasks.withType(Test) {
+//     testLogging {
+//         events "passed", "skipped", "failed"
+//         exceptionFormat "full"
+//     }
+// }

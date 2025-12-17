@@ -2,9 +2,11 @@ stages:
   - commit
   - staging
   - production
-  # - test
 
-build_backend:
+##########################
+####   COMMIT STAGE   ####
+##########################
+build:
   image: gradle:8.3-jdk17
   stage: commit
   tags:
@@ -16,16 +18,21 @@ build_backend:
     paths:
       - .gradle/wrapper
       - .gradle/caches
+  # TODO
+  # before_script:
+  #   - gradle wrapper
+  #   - chmod +x ./gradlew
   script:
-    # Compile and package WITHOUT tests
-    - gradle clean assemble --build-cache --no-daemon
+    - ./gradlew clean assemble bootJar -x test --build-cache --no-daemon
   artifacts:
     name: "backend-build-$CI_COMMIT_SHORT_SHA"
     paths:
-      - build/               # this makes compiled classes available to test job
+      - build/libs/       # Contains the JAR
+      - build/classes/    # Contains compiled code (speeds up test stage)
+      - build/resources/  # Contains properties/xml files
     expire_in: 1 week
 
-test_backend:
+test:
   image: gradle:8.3-jdk17
   stage: commit
   tags:
@@ -37,20 +44,48 @@ test_backend:
     paths:
       - .gradle/wrapper
       - .gradle/caches
-  dependencies:
-    - build_backend        # pull compiled artifacts
+  needs:
+    - job: build
+      artifacts: true
   script:
-    # Run tests ONLY — no rebuild
-    - gradle test --no-daemon --info
+    - ./gradlew test --no-daemon
 
-# package_docker_image:
-#   stage: commit
+package:
+  image: docker:latest
+  stage: commit
+  tags:
+    - integration
+  needs:
+    - job: test
+      artifacts: false
+    - job: build
+      artifacts: true
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
+    # - ls -R build/libs/
+  script:
+    - docker build -t $CI_REGISTRY_IMAGE:latest .
+    - docker push $CI_REGISTRY_IMAGE:latest
+
+###########################
+####   STAGING STAGE   ####
+###########################
+# acceptance:
+#   image: docker:latest
+#   stage: staging
 #   tags:
-#     - packaging
-#   dependencies:
-#     - test_backend
+#     - integration
+#   needs:
+#     - job: package
 #   before_script:
 #     - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
+#     - docker pull $CI_REGISTRY_IMAGE:latest
+#     - docker compose --file ./docker/docker-compose.db.yml up -d
+#     - docker compose --file ./docker/docker-compose.backend.staging.yml up -d
 #   script:
-#     - docker build -t $CI_REGISTRY_IMAGE:latest .
-#     - docker push $CI_REGISTRY_IMAGE:latest
+#     - echo "Acceptance tests here"
+
+##############################
+####   PRODUCTION STAGE   ####
+##############################
+# release:
