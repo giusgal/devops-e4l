@@ -59,3 +59,107 @@
     name: "{{ gitlab_package_name | default(gitlab_edition) }}"
     state: present
   when: not gitlab_file.stat.exists
+
+
+- name: "Create /etc/gitlab/ssl directory"
+  file:
+    path: /etc/gitlab/ssl
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+
+- name: "Create san.cnf file for certificate generation"
+  copy:
+    dest: /tmp/san.cnf
+    content: |
+      [ req ]
+      default_bits       = 4096
+      prompt             = no
+      default_md         = sha256
+      distinguished_name = dn
+      req_extensions     = req_ext
+
+      [ dn ]
+      CN = {{ gitlab_domain }}
+
+      [ req_ext ]
+      subjectAltName = @alt_names
+
+      [ alt_names ]
+      IP.1 = {{ gitlab_domain }}
+    mode: '0644'
+
+
+- name: "Check if SSL certificate already exists"
+  stat:
+    path: "/etc/gitlab/ssl/{{ gitlab_domain }}.crt"
+  register: ssl_cert
+
+
+- name: "Generate SSL certificate for GitLab registry"
+  command: >
+    openssl req -x509 -nodes -newkey rsa:4096
+    -keyout /etc/gitlab/ssl/{{ gitlab_domain }}.key
+    -out /etc/gitlab/ssl/{{ gitlab_domain }}.crt
+    -days 365
+    -config /tmp/san.cnf
+    -extensions req_ext
+  when: not ssl_cert.stat.exists
+
+
+- name: "Set permissions on SSL private key"
+  file:
+    path: "/etc/gitlab/ssl/{{ gitlab_domain }}.key"
+    mode: '0600'
+    owner: root
+    group: root
+  when: not ssl_cert.stat.exists
+
+
+- name: "Deploy GitLab configuration"
+  template:
+    src: gitlab.rb.j2
+    dest: /etc/gitlab/gitlab.rb
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: "Check for gitlab-ctl"
+  stat: path=/usr/bin/gitlab-ctl
+  register: gitlab_ctl
+
+- name: "Run gitlab reconfigure"
+  command: gitlab-ctl reconfigure
+  when: gitlab_ctl.stat.exists
+
+
+- name: "Restart GitLab"
+  command: gitlab-ctl restart
+  when: gitlab_ctl.stat.exists
+
+
+- name: "Create Docker certificate directory for registry"
+  file:
+    path: "/etc/docker/certs.d/{{ gitlab_domain }}:5050"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+
+- name: "Copy SSL certificate for Docker registry"
+  copy:
+    src: "/etc/gitlab/ssl/{{ gitlab_domain }}.crt"
+    dest: "/etc/docker/certs.d/{{ gitlab_domain }}:5050/ca.crt"
+    remote_src: yes
+    owner: root
+    group: root
+    mode: '0644'
+
+
+- name: "Restart Docker service"
+  systemd:
+    name: docker
+    state: restarted

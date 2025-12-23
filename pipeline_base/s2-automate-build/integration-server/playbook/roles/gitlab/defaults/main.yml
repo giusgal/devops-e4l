@@ -4,9 +4,10 @@
 # repositories or from the tools' official websites
 
 destination: "{{vHome}}/Tools_download"
+gitlab_domain: "192.168.56.9"
 
-
-gitlab_external_url: "https://gitlab/"
+# GitLab configuration
+gitlab_external_url: "http://{{ gitlab_domain }}/gitlab"
 gitlab_git_data_dir: "/var/opt/gitlab/git-data"
 gitlab_edition: "gitlab-ce"
 gitlab_version: ''
@@ -15,4 +16,9 @@ gitlab_config_template: "gitlab.rb.j2"
 gitlab_package_version_separator: '='
 gitlab_repository_installation_script_url: "https://packages.gitlab.com/install/repositories/gitlab/{{ gitlab_edition }}/script.deb.sh"
 gitlab_download_validate_certs: true
-  
+
+# GitLab Registry configuration
+gitlab_registry_enable: true
+gitlab_registry_external_url: "https://{{ gitlab_domain }}:5050"
+gitlab_registry_nginx_ssl_certificate: "/etc/gitlab/ssl/{{ gitlab_domain }}.crt"
+gitlab_registry_nginx_ssl_certificate_key: "/etc/gitlab/ssl/{{ gitlab_domain }}.key"
