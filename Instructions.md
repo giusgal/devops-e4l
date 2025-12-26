@@ -1,10 +1,35 @@
 # Instructions
 
 ## Important
-1. Add the gitlab-runner to the docker group
+1. Add the gitlab-runner to the docker group (automated)
 ```bash
 sudo usermod -aG docker gitlab-runner
 sudo systemctl restart gitlab-runner
+```
+
+## Create docker and shell gitlab runners
+1. Generate a personal access token (edit profile > ...)
+2. Use the following command to create a runner configuration on gitlab (Outside the VM):
+```bash
+curl --silent --request POST --url "http://192.168.56.9/gitlab/api/v4/user/runners" \
+  --data "runner_type=project_type" \
+  --data "project_id=<project_id>" \
+  --data "description=<your_runner_description>" \
+  --data "tag_list=<your_comma_separated_job_tags>" \
+  --header "PRIVATE-TOKEN: <project_access_token>"
+```
+3. Register runner on the VM using the token returned by the previous command (Inside the VM):
+```bash
+sudo gitlab-runner register \
+  --non-interactive \
+  --url "http://192.168.56.9/gitlab/" \
+  --token "<runner_token>" \
+  --executor "<docker|shell>" \
+  --docker-image "alpine:latest"
+```
+4. Restart the runner
+```bash
+sudo gitlab-runner restart
 ```
 
 ## Set tls for docker registry on gitlab (automated)

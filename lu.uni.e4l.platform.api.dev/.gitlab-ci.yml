@@ -10,7 +10,7 @@ build:
   image: gradle:8.3-jdk17
   stage: commit
   tags:
-    - integration
+    - docker-runner
   variables:
     GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
   cache:
@@ -29,7 +29,7 @@ test:
   image: gradle:8.3-jdk17
   stage: commit
   tags:
-    - integration
+    - docker-runner
   variables:
     GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
   cache:
@@ -40,13 +40,13 @@ test:
     - job: build
       artifacts: true
   script:
-    - gradle test --no-daemon --info
+    - gradle test --no-daemon
 
 package:
   image: docker:latest
   stage: commit
   tags:
-    - integration
+    - docker-runner
   needs:
     - job: test
       artifacts: false
