@@ -7,7 +7,7 @@ sudo usermod -aG docker gitlab-runner
 sudo systemctl restart gitlab-runner
 ```
 
-## Set tls for docker registry on gitlab (to automate)
+## Set tls for docker registry on gitlab (automated)
 1. Go inside the integration server VM
 1. Create a file `san.cnf` and paste the following content
 ```bash

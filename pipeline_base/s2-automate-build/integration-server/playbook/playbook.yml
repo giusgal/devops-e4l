@@ -17,5 +17,8 @@
   - include_role:
       name: gitlab
 
+  - include_role:
+      name: gitlab-runner
+
 
   
