@@ -25,7 +25,9 @@ sudo gitlab-runner register \
   --url "http://192.168.56.9/gitlab/" \
   --token "<runner_token>" \
   --executor "<docker|shell>" \
-  --docker-image "alpine:latest"
+  --docker-image "alpine:latest" \
+  --docker-privileged \
+  --docker-volumes "/etc/docker/certs.d:/etc/docker/certs.d:ro"
 ```
 4. Restart the runner
 ```bash
