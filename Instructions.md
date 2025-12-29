@@ -1,5 +1,7 @@
 # Instructions
 
+Internal use only (see the main README.md for the actual instructions).
+
 ## Important
 1. Add the gitlab-runner to the docker group (automated)
 ```bash
