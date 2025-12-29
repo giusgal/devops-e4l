@@ -1,0 +1,23 @@
+name: e4l-db-prod
+
+services:
+  e4l-db-prod:
+    restart: always
+    image: mariadb:10.4.7
+    container_name: e4l-db-prod
+    volumes:
+      - /opt/e4l-mysql-prod:/var/lib/mysql
+      # - ${DUMP_DIR}:${DUMP_DIR}
+    environment:
+      - MYSQL_ROOT_PASSWORD=${PROD_MYSQL_PASSWORD}
+      - MYSQL_USER=${PROD_MYSQL_USERNAME}
+      - MYSQL_PASSWORD=${PROD_MYSQL_PASSWORD}
+      - MYSQL_ROOT_HOST=%
+      - TZ=Europe/Luxembourg
+    networks:
+      - e4l-db-net-prod
+
+networks:
+  e4l-db-net-prod:
+    external: false
+    name: e4l-db-net-prod

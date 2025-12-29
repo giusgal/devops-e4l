@@ -1,99 +1,230 @@
 stages:
   - commit
   - staging
+  - deploy-production
   - production
 
 ##########################
 ####   COMMIT STAGE   ####
 ##########################
-build:
-  image: gradle:8.3-jdk17
-  stage: commit
-  tags:
-    - docker-runner
-  variables:
-    GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
-  cache:
-    key: gradle-cache
-    paths:
-      - .gradle
-  script:
-    - gradle clean bootJar -x test --build-cache --no-daemon
-  artifacts:
-    name: "backend-build-$CI_COMMIT_SHORT_SHA"
-    paths:
-      - build
-    expire_in: 1 hour
+# build:
+#   image: gradle:8.3-jdk17
+#   stage: commit
+#   tags:
+#     - docker-runner
+#   variables:
+#     GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
+#   cache:
+#     key: gradle-cache
+#     paths:
+#       - .gradle
+#   script:
+#     - gradle clean bootJar -x test --build-cache --no-daemon
+#   artifacts:
+#     name: "backend-build-$CI_COMMIT_SHORT_SHA"
+#     paths:
+#       - build
+#     expire_in: 1 hour
 
-test:
-  image: gradle:8.3-jdk17
-  stage: commit
-  tags:
-    - docker-runner
-  variables:
-    GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
-  cache:
-    key: gradle-cache
-    paths:
-      - .gradle
-  needs:
-    - job: build
-      artifacts: true
-  script:
-    - gradle test --no-daemon
-  artifacts:
-    when: always  # Save results even if tests fail
-    paths:
-      - build/reports/tests/test/
-    reports:
-      junit: build/test-results/test/**/TEST-*.xml
-    expire_in: 1 week
+# test:
+#   image: gradle:8.3-jdk17
+#   stage: commit
+#   tags:
+#     - docker-runner
+#   variables:
+#     GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
+#   cache:
+#     key: gradle-cache
+#     paths:
+#       - .gradle
+#   needs:
+#     - job: build
+#       artifacts: true
+#   script:
+#     - gradle test --no-daemon
+#   artifacts:
+#     when: always  # Save results even if tests fail
+#     paths:
+#       - build/reports/tests/test/
+#     reports:
+#       junit: build/test-results/test/**/TEST-*.xml
+#     expire_in: 1 week
 
-package:
-  image: docker:29.1.3-cli
-  stage: commit
-  services:
-    - name: docker:29.1.3-dind
-      alias: docker
-      command: ["--storage-driver=overlay2"]
-  variables:
-    DOCKER_DRIVER: overlay2
-    DOCKER_HOST: tcp://docker:2375
-    DOCKER_TLS_CERTDIR: ""
-  tags:
-    - docker-runner
-  needs:
-    - job: test
-      artifacts: false
-    - job: build
-      artifacts: true
-  before_script:
-    # - docker info | grep "Storage Driver"
-    # - ls -R build/libs/
-    - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
-  script:
-    - docker build -t $CI_REGISTRY_IMAGE:latest .
-    - docker push $CI_REGISTRY_IMAGE:latest
+# package:
+#   image: docker:29.1.3-cli
+#   stage: commit
+#   services:
+#     - name: docker:29.1.3-dind
+#       alias: docker
+#       command: ["--storage-driver=overlay2"]
+#   variables:
+#     DOCKER_DRIVER: overlay2
+#     DOCKER_HOST: tcp://docker:2375
+#     DOCKER_TLS_CERTDIR: ""
+#   tags:
+#     - docker-runner
+#   needs:
+#     - job: test
+#       artifacts: false
+#     - job: build
+#       artifacts: true
+#   before_script:
+#     # - docker info | grep "Storage Driver"
+#     # - ls -R build/libs/
+#     - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
+#   script:
+#     - docker build -t $CI_REGISTRY_IMAGE:latest .
+#     - docker push $CI_REGISTRY_IMAGE:latest
 
 ###########################
 ####   STAGING STAGE   ####
 ###########################
-# acceptance:
-#   image: docker:latest
+# deploy_staging:
 #   stage: staging
 #   tags:
-#     - integration
-#   needs:
-#     - job: package
+#     - shell-runner
+#   # needs:
+#   #   - job: package
 #   before_script:
 #     - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
-#     - docker pull $CI_REGISTRY_IMAGE:latest
-#     - docker compose --file ./docker/docker-compose.db.yml up -d
-#     - docker compose --file ./docker/docker-compose.backend.staging.yml up -d
 #   script:
-#     - echo "Acceptance tests here"
+#     - docker pull $CI_REGISTRY_IMAGE:latest
+#     - docker compose -f ./docker/docker-compose.db.staging.yml pull
+#     - docker compose -f ./docker/docker-compose.backend.staging.yml pull
+#     - docker compose -f ./docker/docker-compose.db.staging.yml down --remove-orphans
+#     - docker compose -f ./docker/docker-compose.backend.staging.yml down --remove-orphans
+#     - docker network rm e4l-db-net-staging || true
+#     - docker compose -f ./docker/docker-compose.db.staging.yml up -d
+#     - docker compose -f ./docker/docker-compose.backend.staging.yml up -d
+#     # Smoke test
+#     - for i in {1..20}; do curl -sf http://localhost:8084/e4lapi/questionnaire && exit 0 || (echo "Waiting for backend... (Attempt $i/20)" && sleep 2); done; exit 1
+
+# system_test:
+#   stage: staging
+#   tags:
+#     - shell-runner
+#   needs:
+#     - job: deploy_staging
+#   script:
+#     # TODO
+#     - echo "System tests here"
+
+# # TODO: Maybe promote to production only on manual trigger
+# promote_image:
+#   stage: staging
+#   tags:
+#     - docker-runner
+#   needs:
+#     - job: system_test
+#   before_script:
+#     - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
+#   script:
+#     - docker pull "$CI_REGISTRY_IMAGE:latest"
+#     - docker tag "$CI_REGISTRY_IMAGE:latest" "$CI_REGISTRY_IMAGE:release"
+#     - docker push "$CI_REGISTRY_IMAGE:release"
 
 ##############################
 ####   PRODUCTION STAGE   ####
 ##############################
-# release:
+
+.deploy_production_template: &deploy_production_base
+  stage: deploy-production
+  tags:
+    - shell-runner
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
+    - docker pull $CI_REGISTRY_IMAGE:release
+    # Ensure database is running
+    - docker compose -f ./docker/docker-compose.db.prod.yml up -d
+
+deploy_production_blue:
+  <<: *deploy_production_base
+  # needs:
+  #   - job: promote_image
+  script:
+    # Deploy to blue environment
+    - docker compose -f ./docker/docker-compose.backend.prod.blue.yml pull
+    - docker compose -f ./docker/docker-compose.backend.prod.blue.yml up -d
+    # Wait for blue to be healthy
+    - for i in {1..20}; do curl -sf http://localhost:8085/e4lapi/questionnaire && break || (echo "Waiting for blue... ($i/20)" && sleep 2); done
+  # environment:
+  #   name: production-blue
+  #   url: http://localhost:8085
+  when: manual
+
+deploy_production_green:
+  <<: *deploy_production_base
+  # needs:
+  #   - job: promote_image
+  script:
+    # Deploy to green environment
+    - docker compose -f ./docker/docker-compose.backend.prod.green.yml pull
+    - docker compose -f ./docker/docker-compose.backend.prod.green.yml up -d
+    # Wait for green to be healthy
+    - for i in {1..20}; do curl -sf http://localhost:8086/e4lapi/questionnaire && break || (echo "Waiting for green... ($i/20)" && sleep 2); done
+  # environment:
+  #   name: production-green
+  #   url: http://localhost:8086
+  when: manual
+
+switch_to_blue:
+  stage: production
+  tags:
+    - shell-runner
+  needs:
+    - job: deploy_production_blue
+  script:
+    # Update nginx config to point to blue
+    - sed -i 's/server e4l-backend-green-prod:8080/# server e4l-backend-green-prod:8080/' ./docker/nginx.conf
+    - sed -i 's/# server e4l-backend-blue-prod:8080/server e4l-backend-blue-prod:8080/' ./docker/nginx.conf
+    - docker compose -f ./docker/docker-compose.nginx.prod.yml up -d --force-recreate
+    # Smoke test through nginx
+    - for i in {1..10}; do curl -sf http://localhost:8090/e4lapi/questionnaire && break || (echo "Testing nginx... ($i/10)" && sleep 2); done
+  # environment:
+  #   name: production
+  #   url: http://localhost:8090
+  when: manual
+
+switch_to_green:
+  stage: production
+  tags:
+    - shell-runner
+  needs:
+    - job: deploy_production_green
+  script:
+    # Update nginx config to point to green
+    - sed -i 's/server e4l-backend-blue-prod:8080/# server e4l-backend-blue-prod:8080/' ./docker/nginx.conf
+    - sed -i 's/# server e4l-backend-green-prod:8080/server e4l-backend-green-prod:8080/' ./docker/nginx.conf
+    - docker compose -f ./docker/docker-compose.nginx.prod.yml up -d --force-recreate
+    # Smoke test through nginx
+    - for i in {1..10}; do curl -sf http://localhost:8090/e4lapi/questionnaire && break || (echo "Testing nginx... ($i/10)" && sleep 2); done
+  # environment:
+  #   name: production
+  #   url: http://localhost:8090
+  when: manual
+
+rollback:
+  stage: production
+  tags:
+    - shell-runner
+  script:
+    # Check which environment is currently active in the running nginx container
+    - |
+      CURRENT_CONFIG=$(docker exec e4l-nginx-backend-prod cat /etc/nginx/nginx.conf)
+      if echo "$CURRENT_CONFIG" | grep "server e4l-backend-blue-prod:8080" | grep -v "^[[:space:]]*#" | grep -q .; then
+        echo "Rolling back from blue to green"
+        sed -i 's/server e4l-backend-blue-prod:8080/# server e4l-backend-blue-prod:8080/' ./docker/nginx.conf
+        sed -i 's/# server e4l-backend-green-prod:8080/server e4l-backend-green-prod:8080/' ./docker/nginx.conf
+      else
+        echo "Rolling back from green to blue"
+        sed -i 's/server e4l-backend-green-prod:8080/# server e4l-backend-green-prod:8080/' ./docker/nginx.conf
+        sed -i 's/# server e4l-backend-blue-prod:8080/server e4l-backend-blue-prod:8080/' ./docker/nginx.conf
+      fi
+    - docker compose -f ./docker/docker-compose.nginx.prod.yml up -d --force-recreate
+    # Smoke test
+    - for i in {1..10}; do curl -sf http://localhost:8090/e4lapi/questionnaire && break || (echo "Testing nginx... ($i/10)" && sleep 2); done
+    - echo "Rollback completed"
+  when: manual
+  # environment:
+  #   name: production
+  #   action: rollback

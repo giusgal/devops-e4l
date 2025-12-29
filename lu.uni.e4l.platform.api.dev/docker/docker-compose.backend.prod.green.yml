@@ -1,0 +1,27 @@
+name: e4l-backend-green-prod
+
+services:
+  e4l-backend-green-prod:
+    restart: always
+    image: ${CI_REGISTRY_IMAGE}:release
+    container_name: e4l-backend-green-prod
+    ports:
+      - "8086:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=${PROD_SPRING_DATASOURCE_URL}
+      - SPRING_DATASOURCE_USERNAME=${PROD_MYSQL_USERNAME}
+      - SPRING_DATASOURCE_PASSWORD=${PROD_MYSQL_PASSWORD}
+      - RESOURCES_STATIC_URL=${PROD_RESOURCES_STATIC_URL}
+
+      - JWT_SECRET=${JWT_SECRET}
+      - SIGNATURE_KEY=${SIGNATURE_KEY}
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+
+      - TZ=Europe/Luxembourg
+    networks:
+      - e4l-db-net-prod
+
+networks:
+  e4l-db-net-prod:
+    external: true

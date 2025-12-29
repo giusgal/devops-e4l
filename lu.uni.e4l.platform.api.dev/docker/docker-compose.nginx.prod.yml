@@ -1,0 +1,19 @@
+name: e4l-nginx-backend-prod
+
+services:
+  e4l-nginx-backend-prod:
+    image: nginx:alpine
+    container_name: e4l-nginx-backend-prod
+    ports:
+      - "8090:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - e4l-db-net-prod
+    # depends_on:
+    #   - backend-blue
+    #   - backend-green
+
+networks:
+  e4l-db-net-prod:
+    external: true
