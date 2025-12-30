@@ -1,13 +1,86 @@
 stages:
-  - build
+  - commit
+  - staging
+  - production
 
-build-frontend:
-  image: node:22
-  stage: build
+##########################
+####   COMMIT STAGE   ####
+##########################
+build:
+  image: node:18
+  stage: commit
   tags:
-    - integration
+    - docker-runner
   script:
-    - npm install && npm run build
-  cache:
+    - npm install --save-dev webpack
+    - npm run build
+  artifacts:
+    name: "frontend-build-$CI_COMMIT_SHORT_SHA"
     paths:
       - e4l.frontend.docker/web/dist
+    expire_in: 1 hour
+
+package:
+  image: docker:29.1.3-cli
+  stage: commit
+  services:
+    - name: docker:29.1.3-dind
+      alias: docker
+      command: ["--storage-driver=overlay2"]
+  variables:
+    DOCKER_DRIVER: overlay2
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  tags:
+    - docker-runner
+  needs:
+    - job: build
+      artifacts: true
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
+  script:
+    - docker build -t $CI_REGISTRY_IMAGE:latest ./e4l.frontend.docker/web/.
+    - docker push $CI_REGISTRY_IMAGE:latest
+
+###########################
+####   STAGING STAGE   ####
+###########################
+deploy_staging:
+  stage: staging
+  tags:
+    - shell-runner
+  needs:
+    - job: package
+      artifacts: false
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
+  script:
+    - docker pull "$CI_REGISTRY_IMAGE:latest"
+    - docker compose -f ./e4l.frontend.docker/docker-compose.frontend.staging.yml pull
+    - docker compose -f ./e4l.frontend.docker/docker-compose.frontend.staging.yml up -d
+  # environment:
+  #   name: staging
+  #   url: https://juno.uni.lux/e4l/
+
+##############################
+####   PRODUCTION STAGE   ####
+##############################
+# deploy_production:
+#   stage: production
+#   tags:
+#     - shell-runner
+#   when: manual
+#   needs:
+#     - job: deploy_staging
+#       artifacts: false
+#   before_script:
+#     - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
+#   script:
+#     - docker pull "$CI_REGISTRY_IMAGE:latest"
+#     - docker tag "$CI_REGISTRY_IMAGE:latest" "$CI_REGISTRY_IMAGE:release"
+#     - docker push "$CI_REGISTRY_IMAGE:release"
+#     - docker-compose -f ./e4l.frontend.docker/docker-compose.frontend.production.yml pull
+#     - docker-compose -f ./e4l.frontend.docker/docker-compose.frontend.production.yml up -d
+#   # environment:
+#   #   name: production
+#   #   url: https://e4l.uni.lu/

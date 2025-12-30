@@ -96,3 +96,34 @@ username and password are those of your gitlab user
 ```bash
 docker login 192.168.56.9:5050
 ```
+
+## Frontend variables
+```bash
+################# MODIFY HERE ################
+# The project id can be accessed from the 
+#  project main page from Gitlab
+PROJECT_ID="<project_id>"
+# The token that was generated previously
+TOKEN="<token>"
+###############################################
+#  This should be it
+GITLAB_URL="http://192.168.56.9/gitlab"
+
+# Corrected API URL
+URL="$GITLAB_URL/api/v4/projects/$PROJECT_ID/variables"
+
+add_var() {
+  local KEY=$1
+  local VALUE=$2
+  local MASKED=$3
+  
+  echo -e "Adding $KEY...\n"
+  curl --request POST --header "PRIVATE-TOKEN: $TOKEN" \
+    "$URL" \
+    --form "key=$KEY" \
+    --form "value=$VALUE" \
+    --form "masked=$MASKED"
+}
+
+add_var "STAGING_API_URL" "http://localhost:8084/e4lapi" "false"
+```

@@ -2,7 +2,7 @@ name: e4l-nginx-backend-prod
 
 services:
   e4l-nginx-backend-prod:
-    image: nginx:alpine
+    image: nginx:1.28-alpine
     container_name: e4l-nginx-backend-prod
     ports:
       - "8090:80"
