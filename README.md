@@ -68,6 +68,7 @@ Only backend for now.
 
 **Notes:**
 - Use the repository located at `<git_root_folder>/lu.uni.e4l.platform.api.dev`
+- Stop/Cancel the pipeline after the repository is created (the runner are not yet configured so it won't work)
 
 ### 6. Set CI/CD env variables
 

@@ -1,4 +1,0 @@
----
-
-gitlab_runner_repository_script_url: "https://packages.gitlab.com/install/repositories/runner/gitlab-runner/script.deb.sh"
-gitlab_runner_download_validate_certs: true

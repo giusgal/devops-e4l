@@ -1,1 +1,0 @@
-{"virtualbox":{"/vagrant_data":{"guestpath":"/vagrant_data","hostpath":"/home/nicola/devops-e4l/pipeline_base/data","disabled":false,"__vagrantfile":true},"/vagrant":{"guestpath":"/vagrant","hostpath":"/home/nicola/devops-e4l/pipeline_base/staging-server","disabled":false,"__vagrantfile":true}}}
