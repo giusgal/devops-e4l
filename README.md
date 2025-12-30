@@ -149,30 +149,6 @@ sudo gitlab-runner register \
 sudo gitlab-runner restart
 ```
 
-```bash
-# Assuming you are still connected to the VM through ssh
-
-# <project_id> and <token> are the same that you used during the previous step
-curl --silent --request POST --url "http://192.168.56.9/gitlab/api/v4/user/runners" \
-  --data "runner_type=project_type" \
-  --data "project_id=<project_id>" \
-  --data "description=[VM] shell" \
-  --data "tag_list=shell-runner" \
-  --header "PRIVATE-TOKEN: <token>"
-
-# Copy the <runner_token> token that the command returns and use it in the following command
-
-sudo gitlab-runner register \
-  --non-interactive \
-  --url "http://192.168.56.9/gitlab/" \
-  --token "<runner_token>" \
-  --executor "shell" \
-  --docker-image "alpine:latest"
-
-# Restart the runner (IMPORTANT)
-sudo gitlab-runner restart
-```
-
 ### 8. Test pipeline
 The commit and staging stages are fully automated while the production stage is manual.
 
