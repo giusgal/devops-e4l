@@ -19,6 +19,8 @@ Final project for the DevOps course at Uni.lu.
 - Instructions to install here: https://www.virtualbox.org/wiki/Downloads
 3. Vagrant (v 2.4.9, or higher)
 - Instructions to install here: https://www.vagrantup.com/downloads.html
+4. Curl (v 8.5.0, or higher)
+- Run `sudo apt install -y curl`
 
 ## Create VM
 ```bash
@@ -63,12 +65,34 @@ Follow this guide here: `https://docs.gitlab.com/user/profile/personal_access_to
 - Select all the scopes
 - Keep track of this token (you can access it only once)
 
-### 5. Create repository on Gitlab
-Only backend for now.
+### 5. Create repository on GitLab
 
-**Notes:**
-- Use the repository located at `<git_root_folder>/lu.uni.e4l.platform.api.dev`
-- Stop/Cancel the pipeline after the repository is created (the runner are not yet configured so it won't work)
+Only the backend is required at this stage.
+
+1. Log in to Gitlab using the newly created user.
+
+2. Create a new empty project:
+   - Click **New project** → **Create blank project**
+   - Choose a project name (e.g. `e4l-platform-api`)
+   - **Do not** initialize the repository with a README, `.gitignore`, or license
+   - Create the project
+
+3. From your local machine, push the existing backend project to GitLab:
+   ```bash
+   cd <git_root_folder>/lu.uni.e4l.platform.api.dev
+
+   git init
+   git branch -M main
+   git remote add origin http://192.168.56.9/gitlab/<username>/<project-name>.git
+   git add .
+   git commit -m "Initial backend commit"
+   git push -u origin main
+   ```
+
+4. Verify in the GitLab UI that the repository has been created and the source code is visible.
+
+**Final remark:**
+After the first push, GitLab automatically triggers a pipeline. Cancel or stop the pipeline execution from the GitLab UI, as GitLab runners are not yet configured at this stage and the pipeline will fail if allowed to run.
 
 ### 6. Set CI/CD env variables
 
@@ -188,3 +212,21 @@ In particular, perform the following tests:
     - Access the released API on `http://localhost:8090/e4lapi/questionnaire` (the same json page should be returned)
 8. Run the `rollback` job in the `production` stage
     - Access the rolled-back API on `http://localhost:8090/e4lapi/questionnaire` (the same json page should be returned)
+
+
+## Troubleshooting
+
+### VirtualBox fails to start the VM
+
+If `vagrant up` fails with an error indicating that VT-x/AMD-V is already in use, another hypervisor is active on the host system (e.g. KVM on Linux or Hyper-V/WSL2 on Windows).
+
+This project uses :contentReference[oaicite:0]{index=0} as the Vagrant provider, which requires exclusive access to hardware virtualization.
+
+**Possible solution:** stop or disable the conflicting hypervisor.
+
+**Example (Linux hosts):** temporarily unload KVM kernel modules.
+```bash
+sudo modprobe -r kvm_intel kvm_amd kvm
+```
+
+**Remark:** this is a host configuration issue and not related to the project itself.
