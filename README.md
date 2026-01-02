@@ -145,7 +145,7 @@ add_var "ADMIN_PASSWORD" "12345678" "true"
 
 ### 7. Create docker and shell runners
 
-Execute the following commands one after the other.
+Execute the following commands one after the other (from inside the VM).
 ```bash
 cd <git_root_folder>/VM
 vagrant ssh
