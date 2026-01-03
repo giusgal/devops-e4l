@@ -1,0 +1,23 @@
+name: e4l-frontend-blue-prod
+
+services:
+  e4l-frontend-blue-prod:
+    restart: always
+    image: ${CI_REGISTRY_IMAGE}:release
+    container_name: e4l-frontend-blue-prod
+    ports:
+      - 8885:80
+    volumes:
+      - /opt/e4l-news-prod:/usr/share/nginx/news
+    environment:
+      - PUBLIC_PATH=
+      # - API_URL=${PROD_API_URL}
+      - API_URL=http://localhost:8090/e4lapi
+      - TZ=Europe/Luxembourg
+    networks:
+      - e4l-frontend-net-prod
+
+networks:
+  e4l-frontend-net-prod:
+    external: false
+    name: e4l-frontend-net-prod

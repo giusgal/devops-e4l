@@ -142,11 +142,11 @@ deploy_production:
     - job: promote_image
   before_script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
-    - docker pull $CI_REGISTRY_IMAGE:release
+    # - docker pull $CI_REGISTRY_IMAGE:release
     # Ensure database is running (IMPORTANT: it creates the network if not existing)
     - docker compose -f ./docker/docker-compose.db.prod.yml up -d
   script:
-    # Check if nginx is running, if not, deploy both blue and green (first deployment)
+    # Check if the nginx router is running, if not, deploy both blue and green (first deployment)
     - |
       if [ -z "$(docker ps --filter name=e4l-nginx-backend-prod --format '{{.Names}}')" ]; then
         echo "Nginx not running, first deployment, deploying to blue and green environments"
@@ -159,10 +159,10 @@ deploy_production:
         echo "Blue and green deployment completed"
         echo "Blue listening on http://localhost:8085/e4lapi/"
         echo "Green listening on http://localhost:8086/e4lapi/"
-        echo "Note: Nginx not started - run 'release' job to make service publicly available"
+        echo "Note: Nginx router not started - run 'release' job to make backend publicly available"
         exit 0
       fi
-    # Nginx is running, check which environment is currently released and deploy to the other
+    # The nginx router is running, check which environment is currently released and deploy to the other
     - CURRENT_CONFIG=$(docker exec e4l-nginx-backend-prod cat /etc/nginx/nginx.conf)
     - |
       if echo "$CURRENT_CONFIG" | grep "server e4l-backend-blue-prod:8080" | grep -v "^[[:space:]]*#" | grep -q .; then

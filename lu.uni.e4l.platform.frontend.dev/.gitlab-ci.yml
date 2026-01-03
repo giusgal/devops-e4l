@@ -51,7 +51,6 @@ deploy_staging:
     - shell-runner
   needs:
     - job: package
-      artifacts: false
   before_script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
   script:
@@ -62,25 +61,121 @@ deploy_staging:
   #   name: staging
   #   url: https://juno.uni.lux/e4l/
 
+promote_image:
+  image: docker:29.1.3-cli
+  stage: staging
+  services:
+    - name: docker:29.1.3-dind
+      alias: docker
+      command: ["--storage-driver=overlay2"]
+  variables:
+    DOCKER_DRIVER: overlay2
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  tags:
+    - docker-runner
+  needs:
+    - job: deploy_staging
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
+  script:
+    - docker pull "$CI_REGISTRY_IMAGE:latest"
+    - docker tag "$CI_REGISTRY_IMAGE:latest" "$CI_REGISTRY_IMAGE:release"
+    - docker push "$CI_REGISTRY_IMAGE:release"
+
 ##############################
 ####   PRODUCTION STAGE   ####
 ##############################
-# deploy_production:
-#   stage: production
-#   tags:
-#     - shell-runner
-#   when: manual
-#   needs:
-#     - job: deploy_staging
-#       artifacts: false
-#   before_script:
-#     - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
-#   script:
-#     - docker pull "$CI_REGISTRY_IMAGE:latest"
-#     - docker tag "$CI_REGISTRY_IMAGE:latest" "$CI_REGISTRY_IMAGE:release"
-#     - docker push "$CI_REGISTRY_IMAGE:release"
-#     - docker-compose -f ./e4l.frontend.docker/docker-compose.frontend.production.yml pull
-#     - docker-compose -f ./e4l.frontend.docker/docker-compose.frontend.production.yml up -d
-#   # environment:
-#   #   name: production
-#   #   url: https://e4l.uni.lu/
+deploy_production:
+  stage: production
+  tags:
+    - shell-runner
+  needs:
+    - job: deploy_staging
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
+  script:
+    # Check if the nginx router is running, if not, deploy both blue and green (first deployment)
+    - |
+      if [ -z "$(docker ps --filter name=e4l-nginx-frontend-prod --format '{{.Names}}')" ]; then
+        echo "Nginx not running, first deployment, deploying to blue and green environments"
+        docker compose -f ./e4l.frontend.docker/docker-compose.frontend.prod.blue.yml pull
+        docker compose -f ./e4l.frontend.docker/docker-compose.frontend.prod.blue.yml up -d
+        docker compose -f ./e4l.frontend.docker/docker-compose.frontend.prod.green.yml pull
+        docker compose -f ./e4l.frontend.docker/docker-compose.frontend.prod.green.yml up -d
+
+        echo "Blue and green deployment completed"
+        echo "Blue listening on http://localhost:8885/"
+        echo "Green listening on http://localhost:8886/"
+        echo "Note: Nginx router not started - run 'release' job to make frontend publicly available"
+        exit 0
+      fi
+    # The nginx router is running, check which environment is currently released and deploy to the other
+    - CURRENT_CONFIG=$(docker exec e4l-nginx-frontend-prod cat /etc/nginx/nginx.conf)
+    - |
+      if echo "$CURRENT_CONFIG" | grep "server e4l-frontend-blue-prod:80" | grep -v "^[[:space:]]*#" | grep -q .; then
+        echo "Blue is currently released, deploying to green environment"
+        docker compose -f ./e4l.frontend.docker/docker-compose.frontend.prod.green.yml pull
+        docker compose -f ./e4l.frontend.docker/docker-compose.frontend.prod.green.yml up -d
+        echo "Green deployment completed"
+        echo "Service listening on http://localhost:8886/"
+      else
+        echo "Green is currently released, deploying to blue environment"
+        docker compose -f ./e4l.frontend.docker/docker-compose.frontend.prod.blue.yml pull
+        docker compose -f ./e4l.frontend.docker/docker-compose.frontend.prod.blue.yml up -d
+        echo "Blue deployment completed"
+        echo "Service listening on http://localhost:8885/"
+      fi
+  when: manual
+
+release:
+  stage: production
+  tags:
+    - shell-runner
+  needs:
+    - job: deploy_production
+  before_script:
+    # Ensure nginx is running
+    - docker compose -f ./e4l.frontend.docker/docker-compose.nginx-router.prod.yml up -d
+  script:
+    # Check which environment is currently active in the running nginx container
+    - |
+      CURRENT_CONFIG=$(docker exec e4l-nginx-frontend-prod cat /etc/nginx/nginx.conf)
+      # If blue is active, release green
+      if echo "$CURRENT_CONFIG" | grep "server e4l-frontend-blue-prod:80" | grep -v "^[[:space:]]*#" | grep -q .; then
+        echo "Releasing green"
+        sed -i 's/server e4l-frontend-blue-prod:80/# server e4l-frontend-blue-prod:80/' ./e4l.frontend.docker/nginx.conf
+        sed -i 's/# server e4l-frontend-green-prod:80/server e4l-frontend-green-prod:80/' ./e4l.frontend.docker/nginx.conf
+      else
+        echo "Releasing blue"
+        sed -i 's/server e4l-frontend-green-prod:80/# server e4l-frontend-green-prod:80/' ./e4l.frontend.docker/nginx.conf
+        sed -i 's/# server e4l-frontend-blue-prod:80/server e4l-frontend-blue-prod:80/' ./e4l.frontend.docker/nginx.conf
+      fi
+    - docker compose -f ./e4l.frontend.docker/docker-compose.nginx-router.prod.yml up -d --force-recreate
+    - echo "Release completed"
+    - echo "Service is now live on http://localhost:8890/"
+  when: manual
+
+rollback:
+  stage: production
+  tags:
+    - shell-runner
+  needs:
+    - job: release
+  script:
+    # Check which environment is currently active in the running nginx container
+    - |
+      CURRENT_CONFIG=$(docker exec e4l-nginx-frontend-prod cat /etc/nginx/nginx.conf)
+      # If blue is active, roll back to green
+      if echo "$CURRENT_CONFIG" | grep "server e4l-frontend-blue-prod:80" | grep -v "^[[:space:]]*#" | grep -q .; then
+        echo "Rolling back from blue to green"
+        sed -i 's/server e4l-frontend-blue-prod:80/# server e4l-frontend-blue-prod:80/' ./e4l.frontend.docker/nginx.conf
+        sed -i 's/# server e4l-frontend-green-prod:80/server e4l-frontend-green-prod:80/' ./e4l.frontend.docker/nginx.conf
+      else
+        echo "Rolling back from green to blue"
+        sed -i 's/server e4l-frontend-green-prod:80/# server e4l-frontend-green-prod:80/' ./e4l.frontend.docker/nginx.conf
+        sed -i 's/# server e4l-frontend-blue-prod:80/server e4l-frontend-blue-prod:80/' ./e4l.frontend.docker/nginx.conf
+      fi
+    - docker compose -f ./e4l.frontend.docker/docker-compose.nginx-router.prod.yml up -d --force-recreate
+    - echo "Rollback completed"
+  when: manual
