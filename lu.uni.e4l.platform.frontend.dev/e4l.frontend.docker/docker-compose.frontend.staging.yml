@@ -10,10 +10,8 @@ services:
     volumes:
       - /opt/e4l-news-staging:/usr/share/nginx/news
     environment:
-      # - PUBLIC_PATH=/e4l
       - PUBLIC_PATH=
-      # - API_URL=${STAGING_API_URL}
-      - API_URL=http://localhost:8084/e4lapi
+      - API_URL=${STAGING_API_URL}
       - TZ=Europe/Luxembourg
     networks:
       - e4l-frontend-net-staging

@@ -343,7 +343,7 @@
         <mxCell id="LsweunGI1u7F9U2PJjGP-43" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.25;entryDx=0;entryDy=0;curved=0;" edge="1" parent="1" source="LsweunGI1u7F9U2PJjGP-34" target="fUXePz5NROKJio2cQkk3-10">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="LsweunGI1u7F9U2PJjGP-44" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.75;entryDx=0;entryDy=0;curved=0;" edge="1" parent="1" source="LsweunGI1u7F9U2PJjGP-39" target="fUXePz5NROKJio2cQkk3-10">
+        <mxCell id="LsweunGI1u7F9U2PJjGP-44" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.75;entryDx=0;entryDy=0;" edge="1" parent="1" source="LsweunGI1u7F9U2PJjGP-39" target="fUXePz5NROKJio2cQkk3-10">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="LsweunGI1u7F9U2PJjGP-46" value="Legend:&lt;div&gt;host(VM):docker(VM)&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">

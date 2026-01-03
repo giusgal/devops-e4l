@@ -1,5 +1,9 @@
 ---
 
+##########################################
+# Docker Installation
+##########################################
+
 - name: Update repositories cache. 
   apt:
     update_cache: yes

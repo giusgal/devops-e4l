@@ -126,4 +126,5 @@ add_var() {
 }
 
 add_var "STAGING_API_URL" "http://localhost:8084/e4lapi" "false"
+add_var "PROD_API_URL" "http://localhost:8090/e4lapi" "false"
 ```

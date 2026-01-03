@@ -1,5 +1,9 @@
 ---
 
+##########################################
+# GitLab Runner Installation
+##########################################
+
 - name: "Check if GitLab Runner is already installed"
   stat:
     path: /usr/bin/gitlab-runner

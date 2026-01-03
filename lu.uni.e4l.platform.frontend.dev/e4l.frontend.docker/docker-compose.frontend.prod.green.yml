@@ -11,8 +11,7 @@ services:
       - /opt/e4l-news-prod:/usr/share/nginx/news
     environment:
       - PUBLIC_PATH=
-      # - API_URL=${PROD_API_URL}
-      - API_URL=http://localhost:8090/e4lapi
+      - API_URL=${PROD_API_URL}
       - TZ=Europe/Luxembourg
     networks:
       - e4l-frontend-net-prod

@@ -4,10 +4,8 @@
 # repositories or from the tools' official websites
 
 destination: "{{vHome}}/Tools_download"
-gitlab_domain: "192.168.56.9"
 
-# GitLab configuration
-gitlab_external_url: "http://{{ gitlab_domain }}/gitlab"
+# GitLab configuration (gitlab_domain and gitlab_external_url are in group_vars/all.yml)
 gitlab_git_data_dir: "/var/opt/gitlab/git-data"
 gitlab_edition: "gitlab-ce"
 gitlab_version: ''

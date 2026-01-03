@@ -1,0 +1,4 @@
+---
+# Shared variables across all playbooks and roles
+# NOTE: gitlab_domain is provided via Vagrantfile
+gitlab_external_url: "http://{{ gitlab_domain }}/gitlab"

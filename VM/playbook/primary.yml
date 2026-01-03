@@ -19,6 +19,6 @@
 
   - include_role:
       name: gitlab-runner
-
-
   
+  - include_role:
+      name: repositories-config

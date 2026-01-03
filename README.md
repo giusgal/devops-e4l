@@ -19,8 +19,6 @@ Final project for the DevOps course at Uni.lu.
 - Instructions to install here: https://www.virtualbox.org/wiki/Downloads
 3. Vagrant (v 2.4.9, or higher)
 - Instructions to install here: https://www.vagrantup.com/downloads.html
-4. Curl (v 8.5.0, or higher)
-- Run `sudo apt install -y curl`
 
 ## Create VM
 ```bash
@@ -40,6 +38,8 @@ vagrant up
 
 ## Remaining manual steps
 
+The following steps could have been automated, but it would not be practical since they are performed only once. Additionally, automating them would not be ideal from a security standpoint, as it would involve exposing CI/CD variables and passwords.
+
 In order:
 
 ### 1. Change root password
@@ -57,24 +57,14 @@ Go to `http://192.168.56.9/gitlab` in your browser and follow the guided rules t
 ### 3. Accept new user through root
 Login to Gitlab using the root credentials, accept the newly created user, logut and login with this new user credentials.
 
-### 4. Create a personal access token
-
-Follow this guide here: `https://docs.gitlab.com/user/profile/personal_access_tokens/#create-a-personal-access-token`
-
-**Notes:**
-- Select all the scopes
-- Keep track of this token (you can access it only once)
-
-### 5. Create repository on GitLab
-
-Only the backend is required at this stage.
+### 4. Create repositories on GitLab
 
 1. Log in to Gitlab using the newly created user.
 
 2. Create a new empty project:
-   - Click **New project** → **Create blank project**
+   - Click **New project** -> **Create blank project**
    - Choose a project name (e.g. `e4l-platform-api`)
-   - **Do not** initialize the repository with a README, `.gitignore`, or license
+   - **Do NOT** initialize the repository with a README, `.gitignore`, or license
    - Create the project
 
 3. From your local machine, push the existing backend project to GitLab:
@@ -91,19 +81,35 @@ Only the backend is required at this stage.
 
 4. Verify in the GitLab UI that the repository has been created and the source code is visible.
 
-**Final remark:**
+**Remark:**
 After the first push, GitLab automatically triggers a pipeline. Cancel or stop the pipeline execution from the GitLab UI, as GitLab runners are not yet configured at this stage and the pipeline will fail if allowed to run.
+
+5. Do the same thing for the frontend
+
+### 5. Create a personal access token
+
+Follow this guide here: `https://docs.gitlab.com/user/profile/personal_access_tokens/#create-a-personal-access-token`
+
+**Notes:**
+- Select all scopes (this is done here just for simplicity/compatibility, even though it is not the most secure approach).
+- Keep track of this token (you can access it only once).
+
+<!-- ### 6. Get project ids of both repositories
+
+Follow this guide here: `https://docs.gitlab.com/user/project/working_with_projects/#find-the-project-id` -->
 
 ### 6. Set CI/CD env variables
 
-The following script creates all the CI/CD variables needed to run the backend.
+Go to the backend project on gitlab, then `Settings -> CI/CD -> Variables` and 
 
-Copy it into a file on your local machine, modify the variables in the first lines, make it executable and run it.
+The following scripts create all the CI/CD variables needed to run the backend and the frontend.
+
+Copy them into 2 files on your local machine, modify the variables in the first lines, make it executable and run them.
 
 ```bash
 ################# MODIFY HERE ################
-# The project id can be accessed from the 
-#  project main page from Gitlab
+# The project id of the backend can be accessed from the
+#  project's main page from Gitlab
 PROJECT_ID="<project_id>"
 # The token that was generated previously
 TOKEN="<token>"
@@ -143,13 +149,46 @@ add_var "ADMIN_EMAIL" "abc@abc.com" "true"
 add_var "ADMIN_PASSWORD" "12345678" "true"
 ```
 
-### 7. Create docker and shell runners
+```bash
+################# MODIFY HERE ################
+# The project id of the frontend can be accessed from the 
+#  project's main page from Gitlab
+PROJECT_ID="<project_id>"
+# The token that was generated previously
+TOKEN="<token>"
+###############################################
+#  This should be it
+GITLAB_URL="http://192.168.56.9/gitlab"
 
-Execute the following commands one after the other (from inside the VM).
+# Corrected API URL
+URL="$GITLAB_URL/api/v4/projects/$PROJECT_ID/variables"
+
+add_var() {
+  local KEY=$1
+  local VALUE=$2
+  local MASKED=$3
+  
+  echo -e "Adding $KEY...\n"
+  curl --request POST --header "PRIVATE-TOKEN: $TOKEN" \
+    "$URL" \
+    --form "key=$KEY" \
+    --form "value=$VALUE" \
+    --form "masked=$MASKED"
+}
+
+add_var "STAGING_API_URL" "http://localhost:8084/e4lapi" "false"
+add_var "PROD_API_URL" "http://localhost:8090/e4lapi" "false"
+```
+
+### 8. Create docker and shell runners
+
+Execute the following commands one after the other from inside the VM. Repeat these commands for both the frontend and backend (they have different project_id(s)).
+
 ```bash
 cd <git_root_folder>/VM
 vagrant ssh
 
+### DOCKER RUNNER
 # <project_id> and <token> are the same that you used during the previous step
 curl --silent --request POST --url "http://192.168.56.9/gitlab/api/v4/user/runners" \
   --data "runner_type=project_type" \
@@ -171,11 +210,10 @@ sudo gitlab-runner register \
 
 # Restart the runner (IMPORTANT)
 sudo gitlab-runner restart
-```
 
-```bash
 # Assuming you are still connected to the VM through ssh
 
+### SHELL RUNNER
 # <project_id> and <token> are the same that you used during the previous step
 curl --silent --request POST --url "http://192.168.56.9/gitlab/api/v4/user/runners" \
   --data "runner_type=project_type" \
@@ -197,7 +235,7 @@ sudo gitlab-runner register \
 sudo gitlab-runner restart
 ```
 
-### 8. Test pipeline
+### 9. Test pipeline
 The commit and staging stages are fully automated while the production stage is manual.
 
 In particular, perform the following tests:
