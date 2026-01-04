@@ -24,7 +24,7 @@ import { fetchResult } from "../action/answerAction";
 import { Link } from "react-router-dom";
 const Plot = window.createPlotlyComponent.default(Plotly);
 import {Pie} from "react-chartjs-2";
-import 'chart.piecelabel.js';
+import 'chartjs-plugin-piechart-outlabels';
 import LandCalculator from "./landCalculator";
 import uni_logo from "../../public/img/uni-lu-logo.svg";
 import '../../css/results.css'; // Assuming you have an App.css file for styling

@@ -1,4 +1,4 @@
-import axios from "axios/index";
+import axios from "axios";
 
 export function seminarCreateRequest(data) {
     const url = `seminar`;

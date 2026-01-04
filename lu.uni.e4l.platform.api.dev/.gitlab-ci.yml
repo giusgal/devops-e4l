@@ -16,12 +16,13 @@ build:
     - docker-runner
   variables:
     GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
+    GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs='-Xmx1024m -XX:MaxMetaspaceSize=512m -XX:+HeapDumpOnOutOfMemoryError'"
   cache:
     key: gradle-cache
     paths:
       - .gradle
   script:
-    - gradle clean bootJar -x test --build-cache --no-daemon
+    - gradle clean bootJar -x test --no-daemon
   artifacts:
     name: "backend-build-$CI_COMMIT_SHORT_SHA"
     paths:
@@ -38,6 +39,7 @@ test:
     - docker-runner
   variables:
     GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
+    GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs='-Xmx1024m -XX:MaxMetaspaceSize=512m'"
   cache:
     key: gradle-cache
     paths:
@@ -123,8 +125,32 @@ system_test:
   needs:
     - job: deploy_staging
   script:
-    # TODO
-    - echo "System tests here"
+    - chmod +x ./tests/system_tests.sh
+    - ./tests/system_tests.sh http://localhost:8084/e4lapi
+  artifacts:
+    when: always
+    paths:
+      - tests/
+    expire_in: 1 week
+
+uat_test:
+  stage: staging
+  tags:
+    - shell-runner
+  needs:
+    - job: system_test
+  variables:
+    BACKEND_URL: "http://localhost:8084/e4lapi"
+    FRONTEND_URL: "http://localhost:8890"
+  script:
+    - chmod +x ./tests/uat_tests.sh
+    - ./tests/uat_tests.sh
+  artifacts:
+    when: always
+    paths:
+      - tests/
+    expire_in: 1 week
+  allow_failure: true
 
 promote_image:
   rules:
@@ -143,6 +169,7 @@ promote_image:
     - docker-runner
   needs:
     - job: system_test
+    - job: uat_test
   before_script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
   script:
