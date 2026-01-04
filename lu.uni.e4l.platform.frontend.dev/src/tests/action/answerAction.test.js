@@ -8,7 +8,7 @@
 import * as actions from '../../js/action/answerAction';
 
 // Mock axios
-jest.mock('axios/index', () => ({
+jest.mock('axios', () => ({
   get: jest.fn(() => Promise.resolve({ data: {} })),
   post: jest.fn(() => Promise.resolve({ data: {} })),
 }));

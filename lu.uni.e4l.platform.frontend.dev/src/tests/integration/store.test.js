@@ -11,7 +11,7 @@ import questionnaireReducer from '../../js/reducer/questionnaireReducer';
 import answerReducer from '../../js/reducer/answerReducer';
 
 // Mock axios
-jest.mock('axios/index', () => ({
+jest.mock('axios', () => ({
   get: jest.fn(() => Promise.resolve({ data: [] })),
   post: jest.fn(() => Promise.resolve({ data: 'session-123' })),
 }));
@@ -26,7 +26,7 @@ describe('Redux Store Integration', () => {
         questionnaireReducer,
         answerReducer,
       }),
-      applyMiddleware(promise())
+      applyMiddleware(promise)
     );
   });
 
