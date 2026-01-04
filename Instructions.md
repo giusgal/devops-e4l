@@ -97,11 +97,55 @@ username and password are those of your gitlab user
 docker login 192.168.56.9:5050
 ```
 
+## Backend variables
+```bash
+################# MODIFY HERE ################
+# The project id of the backend can be accessed from the
+#  project's main page from Gitlab
+PROJECT_ID="<project_id>"
+# The token that was generated previously
+TOKEN="<token>"
+###############################################
+#  This should be it
+GITLAB_URL="http://192.168.56.9/gitlab"
+
+# Corrected API URL
+URL="$GITLAB_URL/api/v4/projects/$PROJECT_ID/variables"
+
+add_var() {
+  local KEY=$1
+  local VALUE=$2
+  local MASKED=$3
+  
+  echo -e "Adding $KEY...\n"
+  curl --request POST --header "PRIVATE-TOKEN: $TOKEN" \
+    "$URL" \
+    --form "key=$KEY" \
+    --form "value=$VALUE" \
+    --form "masked=$MASKED"
+}
+
+add_var "STAGING_SPRING_DATASOURCE_URL" "jdbc:mysql://e4l-db-staging/e4lstaging?createDatabaseIfNotExist=true&serverTimezone=Europe/Paris" "false"
+add_var "STAGING_MYSQL_USERNAME" "root" "false"
+add_var "STAGING_MYSQL_PASSWORD" "12345678" "true"
+add_var "STAGING_RESOURCES_STATIC_URL" "http://localhost:8084/e4lapi/" "false"
+
+add_var "PROD_SPRING_DATASOURCE_URL" "jdbc:mysql://e4l-db-prod/e4lprod?createDatabaseIfNotExist=true&serverTimezone=Europe/Paris" "false"
+add_var "PROD_MYSQL_USERNAME" "root" "false"
+add_var "PROD_MYSQL_PASSWORD" "12345678" "true"
+add_var "PROD_RESOURCES_STATIC_URL" "http://localhost:8085/e4lapi/" "false"
+
+add_var "JWT_SECRET" "it_s_a_secret" "true"
+add_var "SIGNATURE_KEY" "placeholder" "true"
+add_var "ADMIN_EMAIL" "abc@abc.com" "true"
+add_var "ADMIN_PASSWORD" "12345678" "true"
+```
+
 ## Frontend variables
 ```bash
 ################# MODIFY HERE ################
-# The project id can be accessed from the 
-#  project main page from Gitlab
+# The project id of the frontend can be accessed from the 
+#  project's main page from Gitlab
 PROJECT_ID="<project_id>"
 # The token that was generated previously
 TOKEN="<token>"

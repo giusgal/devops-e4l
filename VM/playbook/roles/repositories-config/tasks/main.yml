@@ -292,6 +292,7 @@
 # Create GitLab runners
 ##############################################
 
+# Here we assume that no other runners are to be registered on the VM apart from the ones we are going to create.
 - name: Unregister all runners from VM
   command: gitlab-runner unregister --all-runners
   become: yes
@@ -457,3 +458,17 @@
     name: gitlab-runner
     state: restarted
   become: yes
+
+##############################################
+# Revoke generated tokens
+##############################################
+
+- name: Revoke user and root personal access tokens
+  shell: |
+    sudo gitlab-rails runner "
+    user_token = PersonalAccessToken.find_by_token('{{ gitlab_user_token }}');
+    user_token.revoke! if user_token;
+    root_token = PersonalAccessToken.find_by_token('{{ gitlab_root_token }}');
+    root_token.revoke! if root_token;
+    "
+  no_log: true

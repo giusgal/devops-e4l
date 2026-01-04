@@ -40,7 +40,7 @@ Vagrant.configure("2") do |config|
     sudo apt-get update
    	SHELL
 
-  config.vm.provision "primary_ansible", type: "ansible" do |ansible|
+  config.vm.provision "fully_automated", type: "ansible", run: "never" do |ansible|
     ansible.playbook = "./playbook/primary.yml"
     ansible.ask_vault_pass = true
     ansible.extra_vars = {
@@ -50,11 +50,11 @@ Vagrant.configure("2") do |config|
     }
   end
 
-  # config.vm.provision "secondary_ansible", type: "ansible", run: "never" do |ansible|
-  #   ansible.playbook = "./playbook/secondary.yml"
-  #   ansible.extra_vars = {
-  #     gitlab_domain: VM_IP
-  #   }
-  # end
+  config.vm.provision "partially_automated", type: "ansible", run: "never" do |ansible|
+    ansible.playbook = "./playbook/backup.yml"
+    ansible.extra_vars = {
+      gitlab_domain: VM_IP
+    }
+  end
    
 end

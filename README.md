@@ -5,25 +5,89 @@ Final project for the DevOps course at Uni.lu.
 
 ## Diagrams
 
+*Figure: System architecture*
 ![System architecture diagram](doc/architecture.png)
 
-*Figure: System architecture (doc/architecture.png)*
+*Figure: Docker networks used for the blue green deployment strategy*
+![Blue green deployment network](doc/blue_green_docker_network.png)
 
 ## Assumptions/Pre-requisites
 
 ### Software
 1. Ansible (v 2.16.3, or higher)
 - Instructions to install here: https://docs.ansible.com/
-- Check installation with the command `ansible --version`
+- Make sure to have ansible-vault installed
 2. VirtualBox(v 7.0, or higher)
 - Instructions to install here: https://www.virtualbox.org/wiki/Downloads
 3. Vagrant (v 2.4.9, or higher)
 - Instructions to install here: https://www.vagrantup.com/downloads.html
 
-## Create VM
+### Ansible vault
+The project uses Ansible Vault to securely store sensitive information (GitLab credentials of the demo user, CI/CD variables, etc.).
+
+**Vault password:** `devops2026`
+
+**To view vault contents:**
+```bash
+ansible-vault view <git_root_folder>/VM/playbook/group_vars/vault.yml
+```
+
+**To edit vault contents:**
+```bash
+ansible-vault edit <git_root_folder>/VM/playbook/group_vars/vault.yml
+```
+
+**Notes**: While the vault can be edited using the previous command, modifying these values may break the provisioning process or the CI/CD pipeline. To ensure a successful demo, it is recommended to keep the existing configuration unchanged.
+
+## Create DevOps environment (fully automated)
+
+The following commands are used to create and provision the VM by doing all the steps needed to have a fully functional GitLab instance with the projects, runners, and CI/CD variables configured.
+
+The following command asks for a password to proceed, this password is needed by ansible to access the vault.
+
 ```bash
 cd <git_root_folder>/VM
-vagrant up
+# password: devops2026
+vagrant up --provision-with "fully_automated"
+```
+
+**Notes**
+- The VM is automatically provisioned using Ansible playbooks.
+- These playbooks do the following things:
+    - Install Docker
+    - Install Gitlab
+    - Generate a certificate for the gitlab container registry
+    - Enable gitlab container registry
+    - Copy certificate to a specific folder enabling docker to login into the container registry
+    - Install gitlab-runner
+    - Create a GitLab user account
+    - Generate personal access tokens (root and user)
+    - Create backend and frontend GitLab projects
+    - Push local repositories to GitLab
+    - Configure CI/CD environment variables for both projects
+    - Create and register GitLab runners (docker and shell runners for both projects)
+    - Revoke generated tokens for security reasons
+
+If this step succeeded, you can **skip** the next one and go directly to the `Scenarios` paragraph.
+
+## Create DevOps environment (Partially automated - optional)
+
+These "partially automated" steps are provided as a fallback in case the fully automated provisioning fails, or as an alternative method for setting up the DevOps environment.
+
+In order:
+
+### 0. Remove previously created VMs
+If the fully automated provisioning failed, it is needed to remove the previously created VM by using the following commands:
+```bash
+cd <git_root_folder>/VM
+vagrant halt
+vagrant destroy
+rm -rf .vagrant
+```
+
+### 1. Create VM
+```bash
+vagrant up --provision-with "partially_automated"
 ```
 
 **Notes**
@@ -36,13 +100,7 @@ vagrant up
     - Copy certificate to a specific folder enabling docker to login into the container registry
     - Install gitlab-runner
 
-## Remaining manual steps
-
-The following steps could have been automated, but it would not be practical since they are performed only once. Additionally, automating them would not be ideal from a security standpoint, as it would involve exposing CI/CD variables and passwords.
-
-In order:
-
-### 1. Change root password
+### 2. Change root password
 ```bash
 cd <git_root_folder>/VM
 vagrant ssh
@@ -51,153 +109,137 @@ sudo gitlab-rake "gitlab:password:reset"
 # password: <your_root_password>
 ```
 
-### 2. Create a Gitlab user
+### 3. Create a Gitlab user
 Go to `http://192.168.56.9/gitlab` in your browser and follow the guided rules to create a new user.
 
-### 3. Accept new user through root
+To simplify the next steps, insert the following information for the user:
+
+- username: `e4lowner`
+- email: `owner@owner.com`
+- password: `Verystrongpassword2026`
+
+`First name` and `Last name` can be freely chosen.
+
+### 4. Accept new user through root
 Login to Gitlab using the root credentials, accept the newly created user, logut and login with this new user credentials.
 
-### 4. Create repositories on GitLab
+**TODO:** Maybe more specific here? 
 
-1. Log in to Gitlab using the newly created user.
+### 5. Create repositories on GitLab
 
-2. Create a new empty project:
+**TODO:** Make the instructions independent from the specific ip address used for the VM
+
+#### Backend
+
+1. Create a new empty project:
    - Click **New project** -> **Create blank project**
-   - Choose a project name (e.g. `e4l-platform-api`)
+   - Use `lu.uni.e4l.platform.api.dev` as the Project name
+   - Set `public` for the Visibility level
    - **Do NOT** initialize the repository with a README, `.gitignore`, or license
    - Create the project
 
-3. From your local machine, push the existing backend project to GitLab:
-   ```bash
-   cd <git_root_folder>/lu.uni.e4l.platform.api.dev
+2. From your local machine, push the existing backend project to GitLab:
+    ```bash
+    cd <git_root_folder>/lu.uni.e4l.platform.api.dev
 
-   git init
-   git branch -M main
-   git remote add origin http://192.168.56.9/gitlab/<username>/<project-name>.git
-   git add .
-   git commit -m "Initial backend commit"
-   git push -u origin main
-   ```
+    # Make sure that any previously created git folder is removed
+    rm -rf .git/
 
-4. Verify in the GitLab UI that the repository has been created and the source code is visible.
+    git init
+    git config --local user.name "e4lowner"
+    git config --local user.email "owner@owner.com"
+    git branch -M main
+    git remote add origin http://192.168.56.9/gitlab/e4lowner/lu.uni.e4l.platform.api.dev.git
+    git add .
+    git commit -m "Initial backend commit"
+    git push -u origin main -o ci.skip # This skips the pipeline automatically
+    ```
 
-**Remark:**
-After the first push, GitLab automatically triggers a pipeline. Cancel or stop the pipeline execution from the GitLab UI, as GitLab runners are not yet configured at this stage and the pipeline will fail if allowed to run.
+#### Frontend
 
-5. Do the same thing for the frontend
+1. Create a new empty project:
+   - Click **New project** -> **Create blank project**
+   - Use `lu.uni.e4l.platform.frontend.dev` as the Project name
+   - Set `public` for the Visibility level
+   - **Do NOT** initialize the repository with a README, `.gitignore`, or license
+   - Create the project
 
-### 5. Create a personal access token
+2. From your local machine, push the existing backend project to GitLab:
+    ```bash
+    cd <git_root_folder>/lu.uni.e4l.platform.frontend.dev
+
+    # Make sure that any previously created git folder is removed
+    rm -rf .git/
+
+    git init
+    git config --local user.name "e4lowner"
+    git config --local user.email "owner@owner.com"
+    git branch -M main
+    git remote add origin http://192.168.56.9/gitlab/e4lowner/lu.uni.e4l.platform.frontend.dev.git
+    git add .
+    git commit -m "Initial frontend commit"
+    git push -u origin main -o ci.skip # This skips the pipeline automatically
+    ```
+
+### 6. Set CI/CD env variables
+
+Access the vault in order to see the CI/CD variables:
+```bash
+# password: devops2026
+ansible-vault view <git_root_folder>/VM/playbook/group_vars/vault.yml
+```
+
+#### Backend
+
+Go to the **Backend** project on gitlab, then `Settings -> CI/CD -> Variables -> Add Variable` and create all the backend variables (`backend_cicd_variables` in the vault).
+
+Ensure variables marked as `masked: true` in the vault are masked in the UI, otherwise, keep them visible. Maintain all other default settings.
+
+#### Frontend
+
+Go to the **Frontend** project on gitlab, then `Settings -> CI/CD -> Variables -> Add Variable` and create all frontend variables (`frontend_cicd_variables` in the vault).
+
+Ensure variables marked as `masked: true` in the vault are masked in the UI, otherwise, keep them visible. Maintain all other default settings.
+
+### 7. Create docker and shell runners
+
+
+#### Precondition 1: Generate a personal access token
 
 Follow this guide here: `https://docs.gitlab.com/user/profile/personal_access_tokens/#create-a-personal-access-token`
 
 **Notes:**
-- Select all scopes (this is done here just for simplicity/compatibility, even though it is not the most secure approach).
+- Select just the `api` scope
 - Keep track of this token (you can access it only once).
 
-<!-- ### 6. Get project ids of both repositories
+#### Precondition 2: Get project ids of both repositories
 
-Follow this guide here: `https://docs.gitlab.com/user/project/working_with_projects/#find-the-project-id` -->
+Follow this guide here: `https://docs.gitlab.com/user/project/working_with_projects/#find-the-project-id`
 
-### 6. Set CI/CD env variables
+---
 
-Go to the backend project on gitlab, then `Settings -> CI/CD -> Variables` and 
-
-The following scripts create all the CI/CD variables needed to run the backend and the frontend.
-
-Copy them into 2 files on your local machine, modify the variables in the first lines, make it executable and run them.
-
-```bash
-################# MODIFY HERE ################
-# The project id of the backend can be accessed from the
-#  project's main page from Gitlab
-PROJECT_ID="<project_id>"
-# The token that was generated previously
-TOKEN="<token>"
-###############################################
-#  This should be it
-GITLAB_URL="http://192.168.56.9/gitlab"
-
-# Corrected API URL
-URL="$GITLAB_URL/api/v4/projects/$PROJECT_ID/variables"
-
-add_var() {
-  local KEY=$1
-  local VALUE=$2
-  local MASKED=$3
-  
-  echo -e "Adding $KEY...\n"
-  curl --request POST --header "PRIVATE-TOKEN: $TOKEN" \
-    "$URL" \
-    --form "key=$KEY" \
-    --form "value=$VALUE" \
-    --form "masked=$MASKED"
-}
-
-add_var "STAGING_SPRING_DATASOURCE_URL" "jdbc:mysql://e4l-db-staging/e4lstaging?createDatabaseIfNotExist=true&serverTimezone=Europe/Paris" "false"
-add_var "STAGING_MYSQL_USERNAME" "root" "false"
-add_var "STAGING_MYSQL_PASSWORD" "12345678" "true"
-add_var "STAGING_RESOURCES_STATIC_URL" "http://localhost:8084/e4lapi/" "false"
-
-add_var "PROD_SPRING_DATASOURCE_URL" "jdbc:mysql://e4l-db-prod/e4lprod?createDatabaseIfNotExist=true&serverTimezone=Europe/Paris" "false"
-add_var "PROD_MYSQL_USERNAME" "root" "false"
-add_var "PROD_MYSQL_PASSWORD" "12345678" "true"
-add_var "PROD_RESOURCES_STATIC_URL" "http://localhost:8085/e4lapi/" "false"
-
-add_var "JWT_SECRET" "it_s_a_secret" "true"
-add_var "SIGNATURE_KEY" "placeholder" "true"
-add_var "ADMIN_EMAIL" "abc@abc.com" "true"
-add_var "ADMIN_PASSWORD" "12345678" "true"
-```
-
-```bash
-################# MODIFY HERE ################
-# The project id of the frontend can be accessed from the 
-#  project's main page from Gitlab
-PROJECT_ID="<project_id>"
-# The token that was generated previously
-TOKEN="<token>"
-###############################################
-#  This should be it
-GITLAB_URL="http://192.168.56.9/gitlab"
-
-# Corrected API URL
-URL="$GITLAB_URL/api/v4/projects/$PROJECT_ID/variables"
-
-add_var() {
-  local KEY=$1
-  local VALUE=$2
-  local MASKED=$3
-  
-  echo -e "Adding $KEY...\n"
-  curl --request POST --header "PRIVATE-TOKEN: $TOKEN" \
-    "$URL" \
-    --form "key=$KEY" \
-    --form "value=$VALUE" \
-    --form "masked=$MASKED"
-}
-
-add_var "STAGING_API_URL" "http://localhost:8084/e4lapi" "false"
-add_var "PROD_API_URL" "http://localhost:8090/e4lapi" "false"
-```
-
-### 8. Create docker and shell runners
-
-Execute the following commands one after the other from inside the VM. Repeat these commands for both the frontend and backend (they have different project_id(s)).
+Execute the following commands one after the other.
 
 ```bash
 cd <git_root_folder>/VM
 vagrant ssh
 
-### DOCKER RUNNER
-# <project_id> and <token> are the same that you used during the previous step
+# Create shell variables to simplify the process
+PROJECT_ID_BACKEND=<project_id_backend>
+PROJECT_ID_FRONTEND=<project_id_frontend>
+GITLAB_TOKEN=<gitlab_token>
+
+#################### BACKEND ####################
+# DOCKER RUNNER
 curl --silent --request POST --url "http://192.168.56.9/gitlab/api/v4/user/runners" \
   --data "runner_type=project_type" \
-  --data "project_id=<project_id>" \
+  --data "project_id=$PROJECT_ID_BACKEND" \
   --data "description=[VM] docker" \
   --data "tag_list=docker-runner" \
-  --header "PRIVATE-TOKEN: <token>"
+  --header "PRIVATE-TOKEN: $GITLAB_TOKEN"
 
-# Copy the <runner_token> token that the command returns and use it in the following command
+# Copy the <runner_token> token that the command 
+#  returns and use it in the following command
 
 sudo gitlab-runner register \
   --non-interactive \
@@ -208,21 +250,57 @@ sudo gitlab-runner register \
   --docker-privileged \
   --docker-volumes "/etc/docker/certs.d:/etc/docker/certs.d:ro"
 
-# Restart the runner (IMPORTANT)
-sudo gitlab-runner restart
-
-# Assuming you are still connected to the VM through ssh
-
-### SHELL RUNNER
-# <project_id> and <token> are the same that you used during the previous step
+# SHELL RUNNER
 curl --silent --request POST --url "http://192.168.56.9/gitlab/api/v4/user/runners" \
   --data "runner_type=project_type" \
-  --data "project_id=<project_id>" \
+  --data "project_id=$PROJECT_ID_BACKEND" \
   --data "description=[VM] shell" \
   --data "tag_list=shell-runner" \
-  --header "PRIVATE-TOKEN: <token>"
+  --header "PRIVATE-TOKEN: $GITLAB_TOKEN"
 
-# Copy the <runner_token> token that the command returns and use it in the following command
+# Copy the <runner_token> token that the command 
+#  returns and use it in the following command
+
+sudo gitlab-runner register \
+  --non-interactive \
+  --url "http://192.168.56.9/gitlab/" \
+  --token "<runner_token>" \
+  --executor "shell" \
+  --docker-image "alpine:latest"
+
+#################################################
+
+################### FRONTEND ####################
+# DOCKER RUNNER
+curl --silent --request POST --url "http://192.168.56.9/gitlab/api/v4/user/runners" \
+  --data "runner_type=project_type" \
+  --data "project_id=$PROJECT_ID_FRONTEND" \
+  --data "description=[VM] docker" \
+  --data "tag_list=docker-runner" \
+  --header "PRIVATE-TOKEN: $GITLAB_TOKEN"
+
+# Copy the <runner_token> token that the command 
+#  returns and use it in the following command
+
+sudo gitlab-runner register \
+  --non-interactive \
+  --url "http://192.168.56.9/gitlab/" \
+  --token "<runner_token>" \
+  --executor "docker" \
+  --docker-image "alpine:latest" \
+  --docker-privileged \
+  --docker-volumes "/etc/docker/certs.d:/etc/docker/certs.d:ro"
+
+# SHELL RUNNER
+curl --silent --request POST --url "http://192.168.56.9/gitlab/api/v4/user/runners" \
+  --data "runner_type=project_type" \
+  --data "project_id=$PROJECT_ID_FRONTEND" \
+  --data "description=[VM] shell" \
+  --data "tag_list=shell-runner" \
+  --header "PRIVATE-TOKEN: $GITLAB_TOKEN"
+
+# Copy the <runner_token> token that the command 
+#  returns and use it in the following command
 
 sudo gitlab-runner register \
   --non-interactive \
@@ -235,22 +313,46 @@ sudo gitlab-runner register \
 sudo gitlab-runner restart
 ```
 
-### 9. Test pipeline
+## Scenarios (TO COMPLETE)
 The commit and staging stages are fully automated while the production stage is manual.
 
 In particular, perform the following tests:
+
+### 1. Backend
 
 1. Modify something in the local repository and push it to Gitlab.
 2. Verify that the commit and staging stages complete without problems (assuming that no bugs were introduced in the first place)
 3. Check the container registry and see if the image has been pushed
 4. Access the staging backend on `http://localhost:8084/e4lapi/questionnaire` from your browser (a json page should be returned)
-5. Run the manual `deploy_production` job in the `production` stage from the pipeline view on Gitlab
+    - Verify that the deployment is visible in the `Operate -> Environments` page
+5. Run the manual `promote_image` and `deploy_production` jobs in the `production` stage from the pipeline view on Gitlab
     - Access the blue/green production environments on `http://localhost:8085/e4lapi/questionnaire` and `http://localhost:8086/e4lapi/questionnaire` (the same json page should be returned)
-7. Run the `release` job in the `production` stage
+6. Run the `release` job in the `production` stage
     - Access the released API on `http://localhost:8090/e4lapi/questionnaire` (the same json page should be returned)
-8. Run the `rollback` job in the `production` stage
+    - Verify that the deployment is visible in the `Operate -> Environments` page
+7. Run the `rollback` job in the `production` stage
     - Access the rolled-back API on `http://localhost:8090/e4lapi/questionnaire` (the same json page should be returned)
+    - Verify that the deployment is visible in the `Operate -> Environments` page
 
+### 2. Frontend
+
+1. Modify something in the local repository and push it to Gitlab.
+2. Verify that the commit and staging stages complete without problems (assuming that no bugs were introduced in the first place)
+3. Check the container registry and see if the image has been pushed
+4. Access the staging frontend on `http://localhost:8884/` from your browser
+    - Verify that the quiz can be accessed (kid or adult quiz + check that the quiz can be actually performed but no need to complete it)
+    - Verify that the deployment is visible in the `Operate -> Environments` page
+5. Run the manual `promote_image` and `deploy_production` jobs in the `production` stage from the pipeline view on Gitlab
+    - Access the blue/green production environments on `http://localhost:8885/` and `http://localhost:8886/`
+    - Verify that the quiz can be accessed on both the environments (kid or adult quiz + check that the quiz can be actually performed but no need to complete it)
+6. Run the `release` job in the `production` stage
+    - Access the released website on `http://localhost:8890/`
+    - Verify that the quiz can be accessed on both the environments (kid or adult quiz + check that the quiz can be actually performed but no need to complete it)
+    - Verify that the deployment is visible in the `Operate -> Environments` page
+7. Run the `rollback` job in the `production` stage
+    - Access the rolled-back website on `http://localhost:8890/`
+    - Verify that the quiz can be accessed on both the environments (kid or adult quiz + check that the quiz can be actually performed but no need to complete it)
+    - Verify that the deployment is visible in the `Operate -> Environments` page
 
 ## Troubleshooting
 
