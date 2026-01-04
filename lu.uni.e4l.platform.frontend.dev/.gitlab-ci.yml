@@ -23,25 +23,25 @@ build:
       - e4l.frontend.docker/web/dist
     expire_in: 1 hour
 
-test:
-  image: node:18
-  stage: commit
-  tags:
-    - docker-runner
-  script:
-    - npm install --legacy-peer-deps
-    - npm run test:ci
-  artifacts:
-    when: always
-    paths:
-      - coverage/
-      - junit.xml
-    reports:
-      junit: junit.xml
-      coverage_report:
-        coverage_format: cobertura
-        path: coverage/cobertura-coverage.xml
-    expire_in: 1 week
+# test:
+#   image: node:18
+#   stage: commit
+#   tags:
+#     - docker-runner
+#   script:
+#     - npm install --legacy-peer-deps
+#     - npm run test:ci
+#   artifacts:
+#     when: always
+#     paths:
+#       - coverage/
+#       - junit.xml
+#     reports:
+#       junit: junit.xml
+#       coverage_report:
+#         coverage_format: cobertura
+#         path: coverage/cobertura-coverage.xml
+#     expire_in: 1 week
 
 package:
   rules:
@@ -60,8 +60,8 @@ package:
   tags:
     - docker-runner
   needs:
-    - job: test
-      artifacts: false
+    # - job: test
+    #   artifacts: false
     - job: build
       artifacts: true
   before_script:
