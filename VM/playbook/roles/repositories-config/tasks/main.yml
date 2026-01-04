@@ -28,7 +28,7 @@
     sudo gitlab-rails runner "
     user = User.find_by_username('root');
     token_name = 'AnsibleAutoRootToken';
-    user.personal_access_tokens.where(name: token_name).destroy_all;
+    user.personal_access_tokens.where(name: token_name).each { |t| t.revoke! };
     
     token = user.personal_access_tokens.create(
       scopes: [:api],
@@ -39,14 +39,26 @@
     puts token.token
     "
   register: generated_admin_token_output
+  no_log: true
 
 - name: Save the admin token as a fact
   set_fact:
     gitlab_root_token: "{{ generated_admin_token_output.stdout | trim }}"
+  no_log: true
 
 ##############################################
 # Create GitLab user
 ##############################################
+
+- name: Check if user exists
+  uri:
+    url: "{{ gitlab_external_url }}/api/v4/users?username={{ gitlab_user_username }}"
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_root_token }}"
+    status_code: [200]
+  register: existing_user
+  no_log: true
 
 - name: Create new GitLab user via API
   uri:
@@ -61,12 +73,14 @@
       name: "{{ gitlab_user_name }}"
       password: "{{ gitlab_user_password }}"
       skip_confirmation: true
-    status_code: [201]
+    status_code: [201, 409]
   register: created_user
+  when: (existing_user.json | default([])) | length == 0
+  no_log: true
 
 - name: Get user ID
   set_fact:
-    gitlab_user_id: "{{ created_user.json.id }}"
+    gitlab_user_id: "{{ ((existing_user.json | default([]))[0].id if (existing_user.json | default([])) | length > 0 else created_user.json.id) | string }}"
 
 ##############################################
 # Create user personal access token
@@ -77,8 +91,8 @@
   shell: |
     sudo gitlab-rails runner "
     user = User.find({{ gitlab_user_id }});
-    token_name = "AnsibleAutoUserToken";
-    user.personal_access_tokens.where(name: token_name).destroy_all;
+    token_name = 'AnsibleAutoUserToken';
+    user.personal_access_tokens.where(name: token_name).each { |t| t.revoke! };
 
     token = user.personal_access_tokens.create(
       scopes: [:api],
@@ -89,14 +103,26 @@
     puts token.token
     "
   register: generated_user_token_output
+  no_log: true
 
 - name: Store user token
   set_fact:
     gitlab_user_token: "{{ generated_user_token_output.stdout | trim }}"
+  no_log: true
 
 ##############################################
 # Create backend project
 ##############################################
+
+- name: Check if backend project exists
+  uri:
+    url: "{{ gitlab_external_url }}/api/v4/projects/{{ gitlab_user_username }}%2Flu.uni.e4l.platform.api.dev"
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_user_token }}"
+    status_code: [200, 404]
+  register: existing_backend_project
+  no_log: true
 
 - name: Create backend project
   uri:
@@ -110,16 +136,28 @@
       visibility: "public"
       initialize_with_readme: false
       auto_devops_enabled: false
-    status_code: [201]
+    status_code: [201, 400]
   register: backend_project
+  when: existing_backend_project.status == 404
+  no_log: true
 
 - name: Get backend project ID
   set_fact:
-    backend_project_id: "{{ backend_project.json.id }}"
+    backend_project_id: "{{ (existing_backend_project.json.id if existing_backend_project.status == 200 else backend_project.json.id) | string }}"
 
 ##############################################
 # Create frontend project
 ##############################################
+
+- name: Check if frontend project exists
+  uri:
+    url: "{{ gitlab_external_url }}/api/v4/projects/{{ gitlab_user_username }}%2Flu.uni.e4l.platform.frontend.dev"
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_user_token }}"
+    status_code: [200, 404]
+  register: existing_frontend_project
+  no_log: true
 
 - name: Create frontend project
   uri:
@@ -133,16 +171,28 @@
       visibility: "public"
       initialize_with_readme: false
       auto_devops_enabled: false
-    status_code: [201]
+    status_code: [201, 400]
   register: frontend_project
+  when: existing_frontend_project.status == 404
+  no_log: true
 
 - name: Get frontend project ID
   set_fact:
-    frontend_project_id: "{{ frontend_project.json.id }}"
+    frontend_project_id: "{{ (existing_frontend_project.json.id if existing_frontend_project.status == 200 else frontend_project.json.id) | string }}"
 
 ##############################################
 # Push local repositories to GitLab
 ##############################################
+
+- name: Check if backend repository has commits
+  uri:
+    url: "{{ gitlab_external_url }}/api/v4/projects/{{ backend_project_id }}/repository/commits"
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_user_token }}"
+    status_code: [200, 404]
+  register: backend_commits
+  no_log: true
 
 - name: Push backend repository to GitLab
   shell: |
@@ -151,19 +201,30 @@
     git config user.name "{{ gitlab_user_name }}"
     git config user.email "{{ gitlab_user_email }}"
     git branch -M main
-    git remote add origin http://{{ gitlab_user_username }}:{{ gitlab_user_token }}@{{ gitlab_domain }}/gitlab/{{ gitlab_user_username }}/lu.uni.e4l.platform.api.dev.git
+    git remote add origin http://{{ gitlab_user_username }}:{{ gitlab_user_token }}@{{ gitlab_domain }}/gitlab/{{ gitlab_user_username }}/lu.uni.e4l.platform.api.dev.git || true
     git add .
-    git commit -m "Initial backend commit"
-    git push -u origin main -o ci.skip
-  args:
-    executable: /bin/bash
+    git commit -m "Initial backend commit" || true
+    git push -u origin main -o ci.skip || git push origin main -o ci.skip
   register: backend_push
-  changed_when: true
+  changed_when: backend_push.rc == 0
+  failed_when: false
+  when: backend_commits.status == 404 or (backend_commits.json | length == 0)
+  no_log: true
 
 - name: Remove .git directory from backend repository
   file:
     path: "{{ backend_VM_path }}/.git"
     state: absent
+
+- name: Check if frontend repository has commits
+  uri:
+    url: "{{ gitlab_external_url }}/api/v4/projects/{{ frontend_project_id }}/repository/commits"
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_user_token }}"
+    status_code: [200, 404]
+  register: frontend_commits
+  no_log: true
 
 - name: Push frontend repository to GitLab
   shell: |
@@ -172,14 +233,17 @@
     git config user.name "{{ gitlab_user_name }}"
     git config user.email "{{ gitlab_user_email }}"
     git branch -M main
-    git remote add origin http://{{ gitlab_user_username }}:{{ gitlab_user_token }}@{{ gitlab_domain }}/gitlab/{{ gitlab_user_username }}/lu.uni.e4l.platform.frontend.dev.git
+    git remote add origin http://{{ gitlab_user_username }}:{{ gitlab_user_token }}@{{ gitlab_domain }}/gitlab/{{ gitlab_user_username }}/lu.uni.e4l.platform.frontend.dev.git || true
     git add .
-    git commit -m "Initial frontend commit"
-    git push -u origin main -o ci.skip
+    git commit -m "Initial frontend commit" || true
+    git push -u origin main -o ci.skip || git push origin main -o ci.skip
   args:
     executable: /bin/bash
   register: frontend_push
-  changed_when: true
+  changed_when: frontend_push.rc == 0
+  failed_when: false
+  when: frontend_commits.status == 404 or (frontend_commits.json | length == 0)
+  no_log: true
 
 - name: Remove .git directory from frontend repository
   file:
@@ -205,6 +269,7 @@
   loop: "{{ backend_cicd_variables }}"
   register: backend_vars_result
   failed_when: backend_vars_result.status not in [201, 400]
+  no_log: true
 
 - name: Add frontend CI/CD variables
   uri:
@@ -221,10 +286,59 @@
   loop: "{{ frontend_cicd_variables }}"
   register: frontend_vars_result
   failed_when: frontend_vars_result.status not in [201, 400]
+  no_log: true
 
 ##############################################
 # Create GitLab runners
 ##############################################
+
+- name: Unregister all runners from VM
+  command: gitlab-runner unregister --all-runners
+  become: yes
+  changed_when: true
+  failed_when: false
+
+- name: List backend project runners
+  uri:
+    url: "{{ gitlab_external_url }}/api/v4/projects/{{ backend_project_id }}/runners"
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_user_token }}"
+    status_code: [200]
+  register: backend_runners_list
+  no_log: true
+
+- name: Delete backend project runners
+  uri:
+    url: "{{ gitlab_external_url }}/api/v4/runners/{{ item.id }}"
+    method: DELETE
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_user_token }}"
+    status_code: [204, 404]
+  loop: "{{ backend_runners_list.json }}"
+  when: backend_runners_list.json | length > 0
+  no_log: true
+
+- name: List frontend project runners
+  uri:
+    url: "{{ gitlab_external_url }}/api/v4/projects/{{ frontend_project_id }}/runners"
+    method: GET
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_user_token }}"
+    status_code: [200]
+  register: frontend_runners_list
+  no_log: true
+
+- name: Delete frontend project runners
+  uri:
+    url: "{{ gitlab_external_url }}/api/v4/runners/{{ item.id }}"
+    method: DELETE
+    headers:
+      PRIVATE-TOKEN: "{{ gitlab_user_token }}"
+    status_code: [204, 404]
+  loop: "{{ frontend_runners_list.json }}"
+  when: frontend_runners_list.json | length > 0
+  no_log: true
 
 # Backend runners
 - name: Create backend docker runner
@@ -241,6 +355,7 @@
       tag_list: "docker-runner"
     status_code: [201]
   register: backend_docker_runner
+  no_log: true
 
 - name: Register backend docker runner
   command: >
@@ -253,6 +368,7 @@
     --docker-privileged
     --docker-volumes "/etc/docker/certs.d:/etc/docker/certs.d:ro"
   become: yes
+  no_log: true
 
 - name: Create backend shell runner
   uri:
@@ -268,6 +384,7 @@
       tag_list: "shell-runner"
     status_code: [201]
   register: backend_shell_runner
+  no_log: true
 
 - name: Register backend shell runner
   command: >
@@ -277,6 +394,7 @@
     --token "{{ backend_shell_runner.json.token }}"
     --executor "shell"
   become: yes
+  no_log: true
 
 # Frontend runners
 - name: Create frontend docker runner
@@ -293,6 +411,7 @@
       tag_list: "docker-runner"
     status_code: [201]
   register: frontend_docker_runner
+  no_log: true
 
 - name: Register frontend docker runner
   command: >
@@ -305,6 +424,7 @@
     --docker-privileged
     --docker-volumes "/etc/docker/certs.d:/etc/docker/certs.d:ro"
   become: yes
+  no_log: true
 
 - name: Create frontend shell runner
   uri:
@@ -320,6 +440,7 @@
       tag_list: "shell-runner"
     status_code: [201]
   register: frontend_shell_runner
+  no_log: true
 
 - name: Register frontend shell runner
   command: >
@@ -329,6 +450,7 @@
     --token "{{ frontend_shell_runner.json.token }}"
     --executor "shell"
   become: yes
+  no_log: true
 
 - name: Restart GitLab runner service
   systemd:
