@@ -21,7 +21,7 @@ import { Link } from "react-router-dom";
 const Plot = window.createPlotlyComponent.default(Plotly);
 import { hideNavButton, showLogoutButton, showNavButton } from "../action/navAction";
 import { Pie } from "react-chartjs-2";
-import 'chart.piecelabel.js';
+import 'chartjs-plugin-piechart-outlabels';
 import LandCalculator from "./landCalculator";
 
 @connect((store) => {

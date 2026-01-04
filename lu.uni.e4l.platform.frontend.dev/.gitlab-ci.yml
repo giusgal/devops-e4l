@@ -12,13 +12,33 @@ build:
   tags:
     - docker-runner
   script:
-    - npm install --save-dev webpack
+    - npm install --legacy-peer-deps
     - npm run build
   artifacts:
     name: "frontend-build-$CI_COMMIT_SHORT_SHA"
     paths:
       - e4l.frontend.docker/web/dist
     expire_in: 1 hour
+
+test:
+  image: node:18
+  stage: commit
+  tags:
+    - docker-runner
+  script:
+    - npm install --legacy-peer-deps
+    - npm run test:ci
+  artifacts:
+    when: always
+    paths:
+      - coverage/
+      - junit.xml
+    reports:
+      junit: junit.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage/cobertura-coverage.xml
+    expire_in: 1 week
 
 package:
   image: docker:29.1.3-cli
@@ -34,6 +54,8 @@ package:
   tags:
     - docker-runner
   needs:
+    - job: test
+      artifacts: false
     - job: build
       artifacts: true
   before_script:

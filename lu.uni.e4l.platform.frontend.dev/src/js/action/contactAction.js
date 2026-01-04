@@ -1,4 +1,4 @@
-import axios from "axios/index";
+import axios from "axios";
 
 export function sendMessage(message) {
     delete axios.defaults.headers.common["Authorization"];
