@@ -318,9 +318,19 @@ The commit and staging stages are fully automated while the production stage is 
 
 In particular, perform the following tests:
 
+### Precondition:
+**TODO:** Fix this explanation
+
+Clone both repositories from gitlab on your local machine, then configure both of them with the commands:
+```bash
+git config --local user.name "e4lowner"
+git config --local user.email "owner@owner.com"
+```
+Avoid the usage of the repositories provided in this folder.
+
 ### 1. Backend
 
-1. Modify something in the local repository and push it to Gitlab.
+1. Modify something in the local repository and push it to Gitlab (username: `e4lowner`, password: `Verystrongpassword2026`).
 2. Verify that the commit and staging stages complete without problems (assuming that no bugs were introduced in the first place)
 3. Check the container registry and see if the image has been pushed
 4. Access the staging backend on `http://localhost:8084/e4lapi/questionnaire` from your browser (a json page should be returned)
@@ -336,7 +346,7 @@ In particular, perform the following tests:
 
 ### 2. Frontend
 
-1. Modify something in the local repository and push it to Gitlab.
+1. Modify something in the local repository and push it to Gitlab (username: `e4lowner`, password: `Verystrongpassword2026`).
 2. Verify that the commit and staging stages complete without problems (assuming that no bugs were introduced in the first place)
 3. Check the container registry and see if the image has been pushed
 4. Access the staging frontend on `http://localhost:8884/` from your browser
