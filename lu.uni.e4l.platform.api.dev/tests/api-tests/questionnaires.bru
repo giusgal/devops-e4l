@@ -1,0 +1,30 @@
+meta {
+  name: Get Questionnaires
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/questionnaire
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.responseTime: lt 2000
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.status).to.equal(200);
+  });
+  
+  test("Response time is acceptable", function() {
+    expect(res.responseTime).to.be.below(2000);
+  });
+  
+  test("Content-Type is JSON", function() {
+    expect(res.headers['content-type']).to.contain('application/json');
+  });
+}

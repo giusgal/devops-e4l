@@ -115,69 +115,52 @@ deploy_staging:
     name: staging
     url: http://localhost:8084/e4lapi/
 
-# system_test:
-#   rules:
-#   - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
-#   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-#   stage: staging
-#   tags:
-#     - shell-runner
-#   needs:
-#     - job: deploy_staging
-#   script:
-#     - chmod +x ./tests/system_tests.sh
-#     - ./tests/system_tests.sh http://localhost:8084/e4lapi
-#   artifacts:
-#     when: always
-#     paths:
-#       - tests/
-#     expire_in: 1 week
-
-# uat_test:
-#   stage: staging
-#   tags:
-#     - shell-runner
-#   needs:
-#     - job: system_test
-#   variables:
-#     BACKEND_URL: "http://localhost:8084/e4lapi"
-#     FRONTEND_URL: "http://localhost:8890"
-#   script:
-#     - chmod +x ./tests/uat_tests.sh
-#     - ./tests/uat_tests.sh
-#   artifacts:
-#     when: always
-#     paths:
-#       - tests/
-#     expire_in: 1 week
-#   allow_failure: true
-
-promote_image:
+automated_system_test:
   rules:
+  - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-  image: docker:29.1.3-cli
   stage: staging
-  services:
-    - name: docker:29.1.3-dind
-      alias: docker
-      command: ["--storage-driver=overlay2"]
-  variables:
-    DOCKER_DRIVER: overlay2
-    DOCKER_HOST: tcp://docker:2375
-    DOCKER_TLS_CERTDIR: ""
+  image: alpine/bruno:latest
   tags:
     - docker-runner
   needs:
     - job: deploy_staging
-    # - job: system_test
-    # - job: uat_test
-  before_script:
-    - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
   script:
-    - docker pull "$CI_REGISTRY_IMAGE:latest"
-    - docker tag "$CI_REGISTRY_IMAGE:latest" "$CI_REGISTRY_IMAGE:release"
-    - docker push "$CI_REGISTRY_IMAGE:release"
-  when: manual
+    - bru run ./tests/api-tests --env staging --output ./tests/results --format junit
+  artifacts:
+    when: always
+    paths:
+      - tests/results/
+    reports:
+      junit: tests/results/*.xml
+    expire_in: 1 week
+
+# promote_image:
+#   rules:
+#   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+#   image: docker:29.1.3-cli
+#   stage: staging
+#   services:
+#     - name: docker:29.1.3-dind
+#       alias: docker
+#       command: ["--storage-driver=overlay2"]
+#   variables:
+#     DOCKER_DRIVER: overlay2
+#     DOCKER_HOST: tcp://docker:2375
+#     DOCKER_TLS_CERTDIR: ""
+#   tags:
+#     - docker-runner
+#   needs:
+#     - job: deploy_staging
+#     # - job: system_test
+#     # - job: uat_test
+#   before_script:
+#     - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
+#     - docker pull "$CI_REGISTRY_IMAGE:latest"
+#     - docker tag "$CI_REGISTRY_IMAGE:latest" "$CI_REGISTRY_IMAGE:release"
+#     - docker push "$CI_REGISTRY_IMAGE:release"
+#   script:
+#   when: manual
 
 ##############################
 ####   PRODUCTION STAGE   ####
@@ -189,9 +172,12 @@ deploy_production:
   tags:
     - shell-runner
   needs:
-    - job: promote_image
+    - job: automated_system_test
   before_script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
+    - docker pull "$CI_REGISTRY_IMAGE:latest"
+    - docker tag "$CI_REGISTRY_IMAGE:latest" "$CI_REGISTRY_IMAGE:release"
+    - docker push "$CI_REGISTRY_IMAGE:release"
     # - docker pull $CI_REGISTRY_IMAGE:release
     # Ensure database is running (IMPORTANT: it creates the network if not existing)
     - docker compose -f ./docker/docker-compose.db.prod.yml up -d
