@@ -23,6 +23,24 @@ build:
       - e4l.frontend.docker/web/dist
     expire_in: 1 hour
 
+test:
+  rules:
+  - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  image: node:18
+  stage: commit
+  tags:
+    - docker-runner
+  needs:
+    - job: build
+  script:
+    - npm install --save-dev webpack
+    - npm test
+  artifacts:
+    when: always
+    reports:
+      junit: junit.xml
+
 package:
   rules:
   - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
@@ -42,6 +60,8 @@ package:
   needs:
     - job: build
       artifacts: true
+    - job: test
+      artifacts: false
   before_script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
   script:
@@ -63,37 +83,59 @@ deploy_staging:
   before_script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
   script:
-    - docker pull "$CI_REGISTRY_IMAGE:latest"
     - docker compose -f ./e4l.frontend.docker/docker-compose.frontend.staging.yml pull
     - docker compose -f ./e4l.frontend.docker/docker-compose.frontend.staging.yml up -d
   environment:
     name: staging
     url: http://localhost:8884/
 
-promote_image:
-  rules:
-  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-  image: docker:29.1.3-cli
-  stage: staging
-  services:
-    - name: docker:29.1.3-dind
-      alias: docker
-      command: ["--storage-driver=overlay2"]
-  variables:
-    DOCKER_DRIVER: overlay2
-    DOCKER_HOST: tcp://docker:2375
-    DOCKER_TLS_CERTDIR: ""
-  tags:
-    - docker-runner
-  needs:
-    - job: deploy_staging
-  before_script:
-    - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
-  script:
-    - docker pull "$CI_REGISTRY_IMAGE:latest"
-    - docker tag "$CI_REGISTRY_IMAGE:latest" "$CI_REGISTRY_IMAGE:release"
-    - docker push "$CI_REGISTRY_IMAGE:release"
-  when: manual
+# automated_uat:
+#   rules:
+#   - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+#   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+#   image: selenium/standalone-chrome:latest
+#   stage: staging
+#   tags:
+#     - docker-runner
+#   needs:
+#     - job: deploy_staging
+#   variables:
+#     STAGING_URL: "http://172.17.0.1:8884"
+#     SCREENSHOT_DIR: "./screenshots"
+#   before_script:
+#     - pip install selenium
+#   script:
+#     - python3 tests/uat/screenshot_test.py
+#   artifacts:
+#     when: always
+#     paths:
+#       - screenshots/
+#     expire_in: 1 week
+
+# promote_image:
+#   rules:
+#   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+#   image: docker:29.1.3-cli
+#   stage: staging
+#   services:
+#     - name: docker:29.1.3-dind
+#       alias: docker
+#       command: ["--storage-driver=overlay2"]
+#   variables:
+#     DOCKER_DRIVER: overlay2
+#     DOCKER_HOST: tcp://docker:2375
+#     DOCKER_TLS_CERTDIR: ""
+#   tags:
+#     - docker-runner
+#   needs:
+#     - job: deploy_staging
+#   before_script:
+#     - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
+#   script:
+#     - docker pull "$CI_REGISTRY_IMAGE:latest"
+#     - docker tag "$CI_REGISTRY_IMAGE:latest" "$CI_REGISTRY_IMAGE:release"
+#     - docker push "$CI_REGISTRY_IMAGE:release"
+#   when: manual
 
 ##############################
 ####   PRODUCTION STAGE   ####
@@ -105,9 +147,14 @@ deploy_production:
   tags:
     - shell-runner
   needs:
-    - job: promote_image
+    - job: deploy_staging
   before_script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
+    - docker pull "$CI_REGISTRY_IMAGE:latest"
+    - docker tag "$CI_REGISTRY_IMAGE:latest" "$CI_REGISTRY_IMAGE:release"
+    - docker push "$CI_REGISTRY_IMAGE:release"
+    # Ensure production network exists
+    - docker network create e4l-frontend-net-prod || true
   script:
     # Check if the nginx router is running, if not, deploy both blue and green (first deployment)
     - |

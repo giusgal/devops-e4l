@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "build": "webpack --env.PUBLIC_PATH=PUBLIC_PATH/",
-    "start": "webpack-dev-server --host 0.0.0.0 --open --env.PUBLIC_PATH=/"
+    "start": "webpack-dev-server --host 0.0.0.0 --open --env.PUBLIC_PATH=/",
+    "test": "jest"
   },
   "keywords": [],
   "author": "",
@@ -28,6 +29,9 @@
     "history": "^4.7.2",
     "html-loader": "^0.5.1",
     "html-webpack-plugin": "^2.30.1",
+    "babel-jest": "^23.6.0",
+    "jest": "^23.6.0",
+    "jest-junit": "^10.0.0",
     "prop-types": "^15.6.0",
     "react": "^16.2.0",
     "react-bootstrap-table": "^4.3.1",

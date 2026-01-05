@@ -18,5 +18,4 @@ services:
 
 networks:
   e4l-frontend-net-prod:
-    external: false
-    name: e4l-frontend-net-prod
+    external: true
