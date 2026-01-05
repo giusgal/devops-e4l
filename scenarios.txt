@@ -20,6 +20,7 @@ BACKEND SCENARIOS:
 FRONTEND SCENARIOS:
   3. Complete CI/CD Pipeline Execution (Frontend) with Release and Rollback
   4. Frontend Test Failure Detection and Recovery
+  5. Frontend Rollback Verification with Content Change
 
 ================================================================================
 ================================================================================
@@ -409,7 +410,8 @@ Click on the failed "test" job to see the details:
 - Scroll through the log to find the failing test output
 - Look for "FAIL src/js/__tests__/navReducer.test.js"
 - See which specific assertions failed
-- Note that NO deployment occurred - staging was protected
+- Note that NO deployment occurred - staging was protected, As a proof 
+  of this, the previous version at http://localhost:8890/ is still working
 
 --------------------------------------------------------------------------------
 STEP 5: Revert to Previous Working State
@@ -446,7 +448,169 @@ KEY OBSERVATIONS:
 - Jest tests validate Redux reducers and component behavior
 - The pipeline prevents broken frontend code from being deployed
 - Immediate feedback helps developers fix issues quickly
-- Recovery is simple with git revert
+- The currently deployed production environment is untouched
+
+
+================================================================================
+       SCENARIO 5: Frontend Rollback Verification with Content Change
+================================================================================
+
+DESCRIPTION:
+This scenario demonstrates the Blue-Green deployment rollback functionality
+by making a visible content change to the frontend, deploying it through the
+full pipeline to production, verifying the change is live, and then performing
+a rollback to instantly revert to the previous version.
+
+PRECONDITIONS:
+- VM is running (vagrant up)
+- GitLab is accessible at http://192.168.56.9/gitlab
+- GitLab runners are registered and active
+- Frontend repository is pushed to GitLab
+- A previous successful deployment exists in production (blue or green), with
+  the correct main page entitled "Welcome to Energy 4 life"
+- Backend is deployed and accessible
+
+--------------------------------------------------------------------------------
+STEP 1: Modify the Welcome Message
+--------------------------------------------------------------------------------
+
+Navigate to the frontend directory.
+
+Edit the en.json file to change the welcome message:
+
+    src/public/language/en.json
+
+Find the "home" section (around line 32-34):
+
+    BEFORE:
+    "home": {
+      "home": "Home",
+      "welcome": "Welcome to Energy 4 life",
+
+    AFTER (change welcome message):
+    "home": {
+      "home": "Home",
+      "welcome": "Welcome to Energy 5 life",
+
+This visible change will allow us to clearly verify when each version is active.
+
+--------------------------------------------------------------------------------
+STEP 2: Commit and Push the Change
+--------------------------------------------------------------------------------
+
+    git add .
+    git commit -m "Update welcome message to Energy 5 life"
+    git push origin main
+
+--------------------------------------------------------------------------------
+STEP 3: Wait for Automatic Stages to Complete
+--------------------------------------------------------------------------------
+
+Navigate to GitLab pipelines and monitor the pipeline execution:
+- build -> SUCCESS
+- test -> SUCCESS
+- package -> SUCCESS
+- deploy_staging -> SUCCESS
+- automated_uat -> SUCCESS
+
+All tests should pass as this is a simple content change.
+
+--------------------------------------------------------------------------------
+STEP 4: Verify Change in Staging
+--------------------------------------------------------------------------------
+
+Open your browser and navigate to:
+
+    http://localhost:8884
+
+Expected: The homepage should display "Welcome to Energy 5 life"
+
+--------------------------------------------------------------------------------
+STEP 5: Deploy to Production (Manual)
+--------------------------------------------------------------------------------
+
+In GitLab, click "Play" on: deploy_production
+
+This deploys the new version to the inactive production environment 
+(blue or green). Wait for the job to complete successfully.
+
+--------------------------------------------------------------------------------
+STEP 6: Release to Production (Manual)
+--------------------------------------------------------------------------------
+
+In GitLab, click "Play" on: release
+
+This switches the nginx router to point to the newly deployed environment,
+making the change live for all users.
+
+--------------------------------------------------------------------------------
+STEP 7: Verify Change in Production
+--------------------------------------------------------------------------------
+
+Open your browser and navigate to:
+
+    http://localhost:8890/
+
+Expected: The homepage should now display "Welcome to Energy 5 life"
+
+This confirms the new version is serving production traffic.
+
+Oss: the previous page may be cached, try to refresh the page multiple
+times or to clear the caches to make the modification appear
+
+--------------------------------------------------------------------------------
+STEP 8: Perform Rollback (Manual)
+--------------------------------------------------------------------------------
+
+In GitLab, click "Play" on: rollback
+
+This instantly switches nginx back to the previous environment, which still
+has the old version deployed.
+
+--------------------------------------------------------------------------------
+STEP 9: Verify Rollback in Production
+--------------------------------------------------------------------------------
+
+Refresh your browser at:
+
+    http://localhost:8890/
+
+Expected: The homepage should now display "Welcome to Energy 4 life"
+
+The rollback happened instantly with zero downtime, and the original message
+is restored.
+
+--------------------------------------------------------------------------------
+STEP 10: Optional - Verify Both Environments Still Exist
+--------------------------------------------------------------------------------
+
+You can verify both blue and green environments are running:
+
+    http://localhost:8885/  (one environment)
+    http://localhost:8886/  (other environment)
+
+One will show "Energy 4 life" and the other "Energy 5 life", demonstrating
+that both versions exist simultaneously, and nginx routing determines which
+one serves production traffic.
+
+--------------------------------------------------------------------------------
+EXPECTED RESULT:
+--------------------------------------------------------------------------------
+- Content change successfully deploys through the pipeline
+- New version is visible in staging before production
+- Release switches production to the new version instantly
+- Rollback immediately restores the previous version
+- Zero downtime during both release and rollback
+- Both environments remain healthy and accessible
+
+--------------------------------------------------------------------------------
+KEY OBSERVATIONS:
+--------------------------------------------------------------------------------
+- Blue-Green deployment enables instant rollback capability
+- No code changes needed to rollback - just nginx configuration
+- Both versions coexist, allowing instant switching
+- Rollback is safe even if the new version has issues
+- Users experience zero downtime during release and rollback operations
 
 ================================================================================
                          END OF SCENARIOS.TXT
