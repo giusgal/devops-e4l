@@ -16,6 +16,7 @@ import { hideNavButton, showLogoutButton, showNavButton } from "../action/navAct
 import { getUser } from "../action/userAction"
 import navReducer from "../reducer/navReducer";
 import regeneratorRuntime from "regenerator-runtime";
+import "react-loader-spinner/dist/loader/css/react-spinner-loader.css"
 import Loader from 'react-loader-spinner'
 import { makeStyles } from '@material-ui/core/styles';
 import ListItem from '@material-ui/core/ListItem';

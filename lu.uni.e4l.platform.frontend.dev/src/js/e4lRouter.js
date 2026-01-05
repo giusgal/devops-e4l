@@ -9,7 +9,7 @@ import { SeminarHome } from "./container/seminarHome.js";
 import { NavBar } from "./presentation/NavBar";
 import React from "react";
 import { connect } from "react-redux";
-import axios from "axios";
+import axios from "axios/index";
 import { BrowserRouter as Router, Route, Switch } from "react-router-dom";
 import { VerticalSpace } from "./presentation/verticalSpace.js";
 import {Community} from "./container/community.js";

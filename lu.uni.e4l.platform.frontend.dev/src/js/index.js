@@ -1,12 +1,12 @@
 import React from "react";
 import ReactDOM from "react-dom";
-import axios from "axios";
+import axios from "axios/index";
 import {Provider} from "react-redux";
 import { PersistGate } from 'redux-persist/lib/integration/react';
 import "../scss/e4l.scss"
 import 'react-bootstrap-table-next/dist/react-bootstrap-table2.min.css';
 import 'react-bootstrap-table2-paginator/dist/react-bootstrap-table2-paginator.min.css';
-// import "react-table/react-table.css";
+import "react-table/react-table.css";
 import {store, persistor} from "./store"
 import E4lRouter from "./e4lRouter";
 import Button from "react-bootstrap/Button";

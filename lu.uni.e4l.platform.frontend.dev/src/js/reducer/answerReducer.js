@@ -60,15 +60,6 @@ export default function answerReducer(state = initState, action) {
             variableValues: [variable],
           },
         ];
-      } else if (answerIsEmpty && variable != null) {
-        modifiedAnswers = [
-          {
-            possibleAnswer: {
-              id: possibleAnswerId,
-            },
-            variableValues: [variable],
-          },
-        ];
       } else {
         modifiedAnswers = [
           ...state.session.answers,

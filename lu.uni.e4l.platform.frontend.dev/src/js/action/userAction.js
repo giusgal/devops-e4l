@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios from "axios/index";
 import store from '../store'
 
 export function authenticationRequest(email, password){
