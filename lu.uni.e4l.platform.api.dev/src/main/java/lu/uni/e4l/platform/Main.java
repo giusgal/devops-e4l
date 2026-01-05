@@ -26,3 +26,4 @@ public class Main {
 
 }
 
+// CI/CD Pipeline test - lun 5 gen 2026, 22:42:10, CET

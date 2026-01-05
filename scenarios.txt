@@ -1,11 +1,10 @@
 ================================================================================
-                     SCENARIOS.TXT - E4L Platform Deployment Pipeline
+                            DEVOPS E4L PROJECT
 ================================================================================
-                           DevOps Course - University of Luxembourg
-                                    January 2026
+                               SCENARIOS.TXT
 ================================================================================
 
-This document contains showcase scenarios that demonstrate the correct 
+This document contains 6 showcase scenarios that demonstrate the correct 
 functioning of the E4L Platform Deployment Pipeline. These scenarios can be 
 reproduced to verify the pipeline meets all functional and non-functional 
 requirements.
@@ -14,1410 +13,441 @@ requirements.
                               TABLE OF CONTENTS
 ================================================================================
 
-1. SCENARIO 1: Complete CI/CD Pipeline Execution (Backend)
-2. SCENARIO 2: Complete CI/CD Pipeline Execution (Frontend)
-3. SCENARIO 3: Automated Testing Demonstration (Tests Passing)
-4. SCENARIO 4: Test Failure Detection (Tests Failing)
-5. SCENARIO 5: Blue-Green Deployment and Rollback
-6. SCENARIO 6: Making a Code Change Through the Pipeline
-7. SCENARIO 7: Running UAT Tests Against Deployed System
+BACKEND SCENARIOS:
+  1. Complete CI/CD Pipeline Execution (Backend) with Release and Rollback
+  2. Backend Test Failure Detection and Recovery
+
+FRONTEND SCENARIOS:
+  3. Complete CI/CD Pipeline Execution (Frontend) with Release and Rollback
+  4. Frontend Test Failure Detection and Recovery
 
 ================================================================================
-                 SCENARIO 1: Complete CI/CD Pipeline Execution (Backend)
+================================================================================
+                           BACKEND SCENARIOS
+================================================================================
+================================================================================
+
+
+================================================================================
+       SCENARIO 1: Complete CI/CD Pipeline Execution (Backend) with Release
 ================================================================================
 
 DESCRIPTION:
-This scenario demonstrates the complete execution of the backend CI/CD pipeline,
-from code commit to production deployment.
+This scenario demonstrates the complete execution of the backend CI/CD pipeline
+from code commit through production release, including the manual deployment
+and release jobs using Blue-Green deployment strategy.
+
+PRECONDITIONS:
+- VM is running (vagrant up)
+- GitLab is accessible at http://192.168.56.9/gitlab
+- GitLab runners are registered and active (docker-runner and shell-runner)
+- Backend repository is pushed to GitLab
+
+--------------------------------------------------------------------------------
+STEP 1: Make a Code Change
+--------------------------------------------------------------------------------
+
+Create a new file in the backend local repository to trigger the pipeline:
+
+    touch testing_pipeline.txt
+
+--------------------------------------------------------------------------------
+STEP 2: Commit and Push
+--------------------------------------------------------------------------------
+
+    git add .
+    git commit -m "Test pipeline"
+    git push
+
+--------------------------------------------------------------------------------
+STEP 3: Wait for Automatic Stages to Complete
+--------------------------------------------------------------------------------
+
+Navigate to GitLab pipelines and wait for automatic jobs to complete:
+- build -> SUCCESS
+- test -> SUCCESS
+- package -> SUCCESS
+- deploy_staging -> SUCCESS
+- automated_system_test -> SUCCESS
+
+--------------------------------------------------------------------------------
+STEP 4: Verify Staging Deployment from Browser
+--------------------------------------------------------------------------------
+
+    http://localhost:8084/e4lapi/questionnaire
+
+Expected: JSON response with questionnaire data.
+
+--------------------------------------------------------------------------------
+STEP 5: Trigger Production Deployment (Manual)
+--------------------------------------------------------------------------------
+
+In GitLab, click "Play" on: deploy_production
+
+This deploys to the inactive environment (blue or green).
+
+--------------------------------------------------------------------------------
+STEP 6: Trigger Release (Manual)
+--------------------------------------------------------------------------------
+
+In GitLab, click "Play" on: release
+
+This switches nginx to point to the newly deployed environment.
+
+--------------------------------------------------------------------------------
+STEP 7: Verify Production from Browser
+--------------------------------------------------------------------------------
+
+    http://localhost:8090/e4lapi/questionnaire
+
+Expected: JSON response with questionnaire data.
+
+--------------------------------------------------------------------------------
+STEP 8: Trigger Rollback (Manual)
+--------------------------------------------------------------------------------
+
+In GitLab, click "Play" on: rollback
+
+This switches traffic back to the previous environment instantly (in this 
+case the same version as before).
+
+--------------------------------------------------------------------------------
+STEP 9: Verify Rollback from Browser
+--------------------------------------------------------------------------------
+
+    http://localhost:8090/e4lapi/questionnaire
+
+Expected: JSON response (previous version now serving).
+
+--------------------------------------------------------------------------------
+EXPECTED RESULT:
+--------------------------------------------------------------------------------
+- All automatic jobs complete successfully
+- Manual deploy_production, release, and rollback jobs work correctly
+- Application is accessible in staging and production
+- Blue-Green deployment provides zero-downtime release
+- Rollback instantly switches back to previous environment
+
+
+================================================================================
+       SCENARIO 2: Backend Test Failure Detection and Recovery
+================================================================================
+
+DESCRIPTION:
+This scenario demonstrates how the pipeline catches bugs early by failing tests.
+We will intentionally introduce a bug in the ExpressionEvaluator that causes 
+unit tests to fail, observe the pipeline failure, and then recover by reverting.
+
+PRECONDITIONS:
+- Pipeline is configured and working
+- Repository is in a clean state with passing tests
+- Last pipeline execution was successful
+
+--------------------------------------------------------------------------------
+STEP 1: Introduce a Bug in the ExpressionEvaluator
+--------------------------------------------------------------------------------
+
+Navigate to the backend directory.
+
+Edit the ExpressionEvaluator.java file to introduce a calculation bug:
+
+    src/main/java/lu/uni/e4l/platform/service/ExpressionEvaluator.java
+
+Find line 22 (the addition operator):
+
+    BEFORE:
+    operators.put("+", new Operator("+", 4, 2, (x) -> x.get(0) + x.get(1)));
+
+    AFTER (introduce bug - change + to -):
+    operators.put("+", new Operator("+", 4, 2, (x) -> x.get(0) - x.get(1)));
+
+This changes the addition operator to actually perform subtraction, which will
+cause the tests to fail.
+
+--------------------------------------------------------------------------------
+STEP 2: Commit and Push the Buggy Code
+--------------------------------------------------------------------------------
+
+    git add .
+    git commit -m "Test"
+    git push
+
+--------------------------------------------------------------------------------
+STEP 3: Observe Pipeline Failure in GitLab
+--------------------------------------------------------------------------------
+
+EXPECTED PIPELINE BEHAVIOR:
+JOB: build
+    Status: SUCCESS
+JOB: test
+    Status: FAILED
+
+PIPELINE STATUS: FAILED
+
+--------------------------------------------------------------------------------
+STEP 4: Verify the Bug was Caught
+--------------------------------------------------------------------------------
+
+Click on the failed "test" job to see the details:
+- Scroll through the log to find the failing test
+- Note that NO deployment occurred - staging was protected
+
+--------------------------------------------------------------------------------
+STEP 5: Revert to Previous Working State
+--------------------------------------------------------------------------------
+
+To fix the issue and restore the pipeline to a working state:
+
+    git revert HEAD --no-edit
+    git push
+
+This creates a new commit that undoes the bug.
+
+--------------------------------------------------------------------------------
+STEP 6: Verify Pipeline Recovery
+--------------------------------------------------------------------------------
+
+Navigate to GitLab and observe the new pipeline.
+PIPELINE STATUS: PASSED
+
+--------------------------------------------------------------------------------
+EXPECTED RESULT:
+--------------------------------------------------------------------------------
+Bug is caught by unit tests at the earliest possible stage
+Pipeline FAILS and stops before any deployment
+Staging environment is NOT affected by buggy code
+After revert, pipeline passes and normal operation resumes
+Git history shows the bug introduction and its fix
+
+--------------------------------------------------------------------------------
+KEY OBSERVATIONS:
+--------------------------------------------------------------------------------
+- Unit tests act as the first line of defense
+- The pipeline prevents bad code from reaching any environment
+- Quick detection means bugs are caught before they cause damage
+- Recovery is simple with git revert
+- The test report provides clear information about what failed
+
+
+================================================================================
+================================================================================
+                           FRONTEND SCENARIOS
+================================================================================
+================================================================================
+
+
+================================================================================
+       SCENARIO 3: Complete CI/CD Pipeline Execution (Frontend) with Release
+================================================================================
+
+DESCRIPTION:
+This scenario demonstrates the complete execution of the frontend CI/CD pipeline
+from code commit through production release, including the manual deployment
+and release jobs using Blue-Green deployment strategy.
 
 PRECONDITIONS:
 - VM is running (vagrant up)
 - GitLab is accessible at http://192.168.56.9/gitlab
 - GitLab runners are registered and active
-- Backend repository is pushed to GitLab
-
-STEPS:
-
-1. Make a code change in the backend
-   ```bash
-   cd lu.uni.e4l.platform.api.dev
-   # Make any small change, e.g., add a comment
-   echo "// Pipeline test $(date)" >> src/main/java/lu/uni/e4l/platform/Main.java
-   git add .
-   git commit -m "Test: Pipeline execution scenario"
-   git push origin main
-   ```
-
-2. Observe the pipeline stages in GitLab CI/CD:
-   - Navigate to: http://192.168.56.9/gitlab/<username>/e4l-platform-api/-/pipelines
-   
-   COMMIT STAGE:
-   a) build job: Compiles the application using Gradle
-      - Expected: SUCCESS (green checkmark)
-      - Artifacts: build/libs/e4l-server.jar
-   
-   b) test job: Runs unit and integration tests
-      - Expected: SUCCESS (green checkmark)
-      - Runs: ExpressionEvaluatorTest, CalculatorServiceTest, 
-              CalculationPipelineIntegrationTest
-      - Test report available in build/reports/tests/test/
-   
-   c) package job: Builds and pushes Docker image
-      - Expected: SUCCESS (green checkmark)
-      - Image pushed to: 192.168.56.9:5050/<username>/e4l-platform-api:latest
-
-   STAGING STAGE:
-   d) deploy_staging job: Deploys to staging environment
-      - Expected: SUCCESS (green checkmark)
-      - Backend available at: http://localhost:8084/e4lapi/
-      - Smoke test verifies /questionnaire endpoint responds
-   
-   e) system_test job: Runs shell-based API system tests
-      - Expected: SUCCESS (green checkmark)
-      - Tests API endpoints against staging deployment using bash/curl
-      - Script: tests/system_tests.sh
-      - Tests included:
-        * API Availability: Questionnaire endpoint, Response count
-        * Session Management: Session creation, Session validation
-        * Security: Protected endpoints, Authentication requirements
-        * Calculations: Energy calculation, Seminar validation
-        * Contact Form: Form submission with proper validation
-        * UAT Preview: Response count verification
-   
-   f) uat_test job: Runs User Acceptance Tests
-      - Expected: SUCCESS (green checkmark)
-      - Verifies end-user scenarios work correctly using bash/curl
-      - Script: tests/uat_tests.sh
-      - Tests included:
-        * UAT-1: User can access questionnaire
-        * UAT-2: User can complete questionnaire (with valid answers)
-        * UAT-3: User can calculate energy footprint
-        * UAT-4: Kids mode works
-        * UAT-5: Statistics are viewable
-        * UAT-6: Seminar mode validates codes
-        * UAT-7: Contact form works (accepts 500 if SMTP unavailable)
-        * UAT-8: Frontend is accessible
-        * UAT-9: API handles errors gracefully
-        * UAT-10: Complete user journey (E2E)
-   
-   g) promote_image job: Tags image for production
-      - Expected: SUCCESS (green checkmark)
-      - Image tagged as: :release
-
-   PRODUCTION STAGE:
-   h) deploy_production job (MANUAL trigger):
-      - Click "Play" button to deploy to production
-      - Expected: SUCCESS (green checkmark)
-      - Deploys to blue OR green environment
-   
-   i) release job (MANUAL trigger):
-      - Click "Play" button to release
-      - Switches nginx to point to new deployment
-      - Expected: SUCCESS (green checkmark)
-
-3. Verify deployment
-   ```bash
-   # Check staging
-   curl http://localhost:8084/e4lapi/questionnaire
-   
-   # Check production (after release)
-   curl http://localhost:8080/e4lapi/questionnaire
-   ```
-
-EXPECTED RESULT:
-- All pipeline stages complete successfully
-- Application is deployed and accessible
-- All tests pass (unit, integration, system, UAT)
-
-================================================================================
-                 SCENARIO 2: Complete CI/CD Pipeline Execution (Frontend)
-================================================================================
-
-DESCRIPTION:
-This scenario demonstrates the complete execution of the frontend CI/CD pipeline.
-
-PRECONDITIONS:
-- VM is running
-- GitLab is accessible
 - Frontend repository is pushed to GitLab
+- Backend Production environments (blue/green) are set up (ensure that
+  the backend pipeline has been completely executed - with a release - 
+  without errors in the previous scenario)
 
-STEPS:
+--------------------------------------------------------------------------------
+STEP 1: Make a Code Change
+--------------------------------------------------------------------------------
 
-1. Make a code change in the frontend
-   ```bash
-   cd lu.uni.e4l.platform.frontend.dev
-   # Make a small change
-   echo "/* Pipeline test $(date) */" >> src/css/App.css
-   git add .
-   git commit -m "Test: Frontend pipeline execution"
-   git push origin main
-   ```
+Create a new file in the frontend local repository to trigger the pipeline:
 
-2. Observe the pipeline stages in GitLab CI/CD:
-   - Navigate to: http://192.168.56.9/gitlab/<username>/e4l-platform-frontend/-/pipelines
+    touch testing_pipeline.txt
 
-   COMMIT STAGE:
-   a) build job: Builds the React application
-      - Expected: SUCCESS
-      - Output: e4l.frontend.docker/web/dist/
-   
-   b) test job: Runs frontend unit and integration tests
-      - Expected: SUCCESS
-      - Tests run:
-        * questionnaireReducer.test.js (10 tests)
-        * answerReducer.test.js (13 tests)
-        * questionnaireAction.test.js (11 tests)
-        * answerAction.test.js (9 tests)
-        * store.test.js (integration, 10 tests)
-      - Coverage report generated
-   
-   c) package job: Builds Docker image
-      - Expected: SUCCESS
-      - Image pushed to registry
+--------------------------------------------------------------------------------
+STEP 2: Commit and Push
+--------------------------------------------------------------------------------
 
-   STAGING STAGE:
-   d) deploy_staging job: Deploys to staging
-      - Expected: SUCCESS
-   
-   e) promote_image job: Promotes to production
-      - Expected: SUCCESS
+    git add .
+    git commit -m "Test pipeline"
+    git push
 
-   PRODUCTION STAGE:
-   f) deploy_production (MANUAL): Deploys to blue/green
-   g) release (MANUAL): Switches traffic
-   h) rollback (MANUAL): Available if needed
+--------------------------------------------------------------------------------
+STEP 3: Wait for Automatic Stages to Complete
+--------------------------------------------------------------------------------
 
-3. Verify deployment
-   - Open browser to http://localhost:8890
-   - Verify E4L website loads correctly
+Navigate to GitLab pipelines and wait for automatic jobs to complete:
+- build -> SUCCESS
+- test -> SUCCESS
+- package -> SUCCESS
+- deploy_staging -> SUCCESS
+- automated_uat -> SUCCESS
 
+--------------------------------------------------------------------------------
+STEP 4: Verify Staging Deployment from Browser
+--------------------------------------------------------------------------------
+
+    http://localhost:8884
+
+Expected: HTML page with the E4L interface.
+
+--------------------------------------------------------------------------------
+STEP 5: Trigger Production Deployment (Manual)
+--------------------------------------------------------------------------------
+
+In GitLab, click "Play" on: deploy_production
+
+This deploys to the inactive environment (either blue or green).
+
+--------------------------------------------------------------------------------
+STEP 6: Trigger Release (Manual)
+--------------------------------------------------------------------------------
+
+In GitLab, click "Play" on: release
+
+This switches nginx to point to the newly deployed environment.
+
+--------------------------------------------------------------------------------
+STEP 7: Verify Production from Browser
+--------------------------------------------------------------------------------
+
+    http://localhost:8890/
+
+Expected: HTML page loads correctly.
+
+--------------------------------------------------------------------------------
+STEP 8: Trigger Rollback (Manual)
+--------------------------------------------------------------------------------
+
+In GitLab, click "Play" on: rollback
+
+This switches traffic back to the previous environment instantly.
+
+--------------------------------------------------------------------------------
+STEP 9: Verify Rollback from Browser
+--------------------------------------------------------------------------------
+
+    http://localhost:8890/
+
+Expected: HTML page (previous version now serving) (in this case the same version
+as before)
+
+--------------------------------------------------------------------------------
 EXPECTED RESULT:
-- All 53 frontend tests pass
-- Application builds successfully
-- Frontend is deployed and accessible
+--------------------------------------------------------------------------------
+- All automatic jobs complete successfully
+- Manual deploy_production, release, and rollback jobs work correctly
+- Application is accessible in staging and production
+- Blue-Green deployment provides zero-downtime release
+- Rollback instantly switches back to previous environment
+
 
 ================================================================================
-            SCENARIO 3: Automated Testing Demonstration (Tests Passing)
+       SCENARIO 4: Frontend Test Failure Detection and Recovery
 ================================================================================
 
 DESCRIPTION:
-This scenario demonstrates all three types of required automated tests passing:
-- Unit tests (backend and frontend)
-- Integration tests (backend and frontend)
-- System tests (API testing)
-- User Acceptance Tests (UAT)
-
-This shows how the pipeline ensures code quality at every stage.
-
-PRECONDITIONS:
-- Pipeline has run at least once
-- All environments are deployed
-
-PART A: UNIT TESTS
-
-Backend Unit Tests (Java/JUnit):
-Location: lu.uni.e4l.platform.api.dev/src/test/java/lu/uni/e4l/platform/service/
-
-1. ExpressionEvaluatorTest.java
-   - Tests tokenization of mathematical expressions
-   - Tests variable substitution
-   - Tests reverse Polish notation conversion
-   - Tests expression evaluation
-   - Tests error handling for invalid expressions
-   
-   To run manually:
-   ```bash
-   cd lu.uni.e4l.platform.api.dev
-   ./gradlew test --tests "lu.uni.e4l.platform.service.ExpressionEvaluatorTest"
-   ```
-
-2. CalculatorServiceTest.java
-   - Tests session calculation
-   - Tests formula evaluation with variables
-   
-   To run manually:
-   ```bash
-   ./gradlew test --tests "lu.uni.e4l.platform.service.CalculatorServiceTest"
-   ```
-
-Frontend Unit Tests (JavaScript/Jest):
-Location: lu.uni.e4l.platform.frontend.dev/src/tests/
-
-1. reducer/questionnaireReducer.test.js
-   - Tests initial state
-   - Tests SET_KID action
-   - Tests FETCH_QUESTIONNAIRE actions (pending, fulfilled, rejected)
-   - Tests NEXT_PAGE and PREVIOUS_PAGE navigation
-   - Tests error message handling
-
-2. reducer/answerReducer.test.js
-   - Tests answer selection and unselection
-   - Tests variable value handling
-   - Tests session management
-   - Tests energy calculation states
-
-3. action/questionnaireAction.test.js
-   - Tests all action creators return correct types
-
-4. action/answerAction.test.js
-   - Tests answer action creators
-
-To run frontend tests manually:
-```bash
-cd lu.uni.e4l.platform.frontend.dev
-npm test
-```
-
-PART B: INTEGRATION TESTS
-
-Backend Integration Tests:
-Location: lu.uni.e4l.platform.api.dev/src/test/java/lu/uni/e4l/platform/integration/
-
-1. CalculationPipelineIntegrationTest.java
-   - Tests full calculation pipeline (multiple components working together)
-   - Tests session processing with multiple answers
-   - Tests formula evaluation with variable substitution
-   - Tests expression evaluation end-to-end
-   - Tests mathematical functions integration
-   - Tests nested function calls
-   
-   To run:
-   ```bash
-   ./gradlew test --tests "lu.uni.e4l.platform.integration.*"
-   ```
-
-Frontend Integration Tests:
-Location: lu.uni.e4l.platform.frontend.dev/src/tests/integration/
-
-1. store.test.js
-   - Tests Redux store with combined reducers
-   - Tests questionnaire navigation flow
-   - Tests answer selection/unselection workflow
-   - Tests complete questionnaire flow
-   - Tests error state handling
-
-PART C: SYSTEM TESTS
-
-Location: lu.uni.e4l.platform.api.dev/tests/system_tests.sh
-
-Shell-based system tests run against the deployed staging environment using curl:
-
-Test Categories:
-1. API Availability Tests (4 tests)
-   - Questionnaire endpoint accessible
-   - Response count endpoint (adults)
-   - Response count endpoint (kids)
-   - Calculate endpoint accessible
-
-2. Session Management Tests (3 tests)
-   - Session endpoint validates input (requires valid answers array)
-   - Session creation with proper answer structure
-   - Session with valid data returns session ID
-
-3. Security Tests (2 tests)
-   - Protected endpoints require authentication
-   - Login endpoint exists and handles invalid credentials
-
-4. Contact Form Test (1 test)
-   - Contact form endpoint validates input
-   - Note: Accepts 500 if SMTP service unavailable
-
-5. UAT Preview Test (1 test)
-   - Response count matches expectations
-
-Test Execution:
-- Runs automatically in staging pipeline stage
-- Can be run manually: ./tests/system_tests.sh http://localhost:8084/e4lapi
-- Pass threshold: 80% (9/11 tests must pass)
-- All tests use proper error handling and validation
-
-PART D: USER ACCEPTANCE TESTS (UAT)
-
-Location: lu.uni.e4l.platform.api.dev/tests/uat_tests.sh
-
-Shell-based UAT tests verify complete user scenarios using bash/curl:
-
-UAT-1: User can access the questionnaire
-  - Verifies GET /questionnaire returns 200 with question data
-
-UAT-2: User can complete the questionnaire
-  - Verifies POST /session with valid answers creates session
-  - Includes proper possibleAnswer references (IDs: 5, 9, 94)
-
-UAT-3: User can calculate their energy footprint
-  - Verifies POST /calculate/energyConsumption returns calculation
-
-UAT-4: Kids can use the questionnaire
-  - Verifies kids mode (iskid: true) works with valid answers
-
-UAT-5: User can view response statistics
-  - Verifies GET /responses/count?kid=false returns count
-
-UAT-6: Seminar mode validates access codes
-  - Verifies GET /calculate/seminar/{code} validates codes properly
-
-UAT-7: Contact form works
-  - Verifies POST /contact with firstName, lastName, email, subject, message
-  - Includes accept-language header requirement
-  - Note: Accepts 500 if SMTP service unavailable in test environment
-
-UAT-8: Frontend is accessible
-  - Verifies frontend URL returns 200
-
-UAT-9: API handles errors gracefully
-  - Verifies malformed requests return 4xx not 5xx
-
-UAT-10: Complete user journey (E2E)
-  - Step 1: Fetch questionnaire
-  - Step 2: Submit session with valid answers
-  - Step 3: Calculate results using session ID
-  - Verifies complete workflow succeeds
-
-Test Execution:
-- Runs automatically in staging pipeline stage
-- Can be run manually: 
-  BACKEND_URL="http://localhost:8084/e4lapi" \
-  FRONTEND_URL="http://localhost:8890" \
-  ./tests/uat_tests.sh
-- Pass threshold: 70% (7/10 tests must pass)
-- All tests include proper scenario descriptions
-
-EXPECTED RESULT:
-- Backend: ~15 unit tests pass, ~10 integration tests pass
-- Frontend: 53 tests pass (unit + integration)
-- System tests: 11/11 pass (100%)
-- UAT tests: 10/10 pass (100%)
-
-All test types are integrated into the CI/CD pipeline and run automatically
-on every commit.
-
-================================================================================
-         SCENARIO 4: Test Failure Detection (Tests Failing)
-================================================================================
-
-DESCRIPTION:
-This scenario demonstrates how the pipeline detects and prevents faulty code
-from reaching production. It shows tests FAILING when bugs are introduced,
-proving that the automated testing catches issues.
+This scenario demonstrates how the frontend pipeline catches bugs early by 
+failing Jest tests. We will intentionally introduce a bug in the navReducer
+that causes unit tests to fail, observe the pipeline failure, and then recover.
 
 PRECONDITIONS:
 - Pipeline is configured and working
-- Repository is clean with passing tests
+- Repository is in a clean state with passing tests
+- Last pipeline execution was successful
 
-PART A: INTRODUCING A UNIT TEST FAILURE (Backend)
+--------------------------------------------------------------------------------
+STEP 1: Introduce a Bug in the navReducer
+--------------------------------------------------------------------------------
 
-1. Introduce a bug in the ExpressionEvaluator
-   ```bash
-   cd lu.uni.e4l.platform.api.dev
-   ```
-   
-   Edit src/main/java/lu/uni/e4l/platform/service/ExpressionEvaluator.java:
-   - Find the evaluate() method
-   - Change a mathematical operation (e.g., change '+' to '-')
+Navigate to the frontend directory.
 
-2. Commit and push
-   ```bash
-   git add .
-   git commit -m "Bug: Introduce calculation error"
-   git push origin main
-   ```
+Edit the navReducer.js file to introduce a bug:
 
-3. Observe pipeline failure
-   - Navigate to GitLab CI/CD pipeline
-   - The "test" job in COMMIT stage will FAIL
-   - Test output shows: ExpressionEvaluatorTest FAILED
-   - Error message indicates which assertion failed
-   
-4. Pipeline stops at commit stage
-   - Package job is not run
-   - Deploy jobs are not run
-   - Faulty code does NOT reach any environment
+    src/js/reducer/navReducer.js
 
+Find the initial state (around line 1-4):
+
+    BEFORE:
+    const initState = {
+      isNavButtonsDisabled: "false",
+      isLogoutButtonDisabled: "true",
+    };
+
+    AFTER (introduce bug - change "false" to "true"):
+    const initState = {
+      isNavButtonsDisabled: "true",    // <-- Changed from "false" to "true"
+      isLogoutButtonDisabled: "true",
+    };
+
+This changes the initial state, which will cause the test to fail because
+the test expects isNavButtonsDisabled to be "false" initially.
+
+--------------------------------------------------------------------------------
+STEP 2: Commit and Push the Buggy Code
+--------------------------------------------------------------------------------
+
+    git add .
+    git commit -m "Test"
+    git push origin main
+
+--------------------------------------------------------------------------------
+STEP 3: Observe Pipeline Failure in GitLab
+--------------------------------------------------------------------------------
+
+EXPECTED PIPELINE BEHAVIOR:
+JOB: build
+    Status: SUCCESS
+JOB: test
+    Status: FAILED
+
+PIPELINE STATUS: FAILED
+
+--------------------------------------------------------------------------------
+STEP 4: Verify the Bug was Caught
+--------------------------------------------------------------------------------
+
+Click on the failed "test" job to see the details:
+- Scroll through the log to find the failing test output
+- Look for "FAIL src/js/__tests__/navReducer.test.js"
+- See which specific assertions failed
+- Note that NO deployment occurred - staging was protected
+
+--------------------------------------------------------------------------------
+STEP 5: Revert to Previous Working State
+--------------------------------------------------------------------------------
+
+To fix the issue and restore the pipeline to a working state:
+
+    git revert HEAD --no-edit
+    git push origin main
+
+This creates a new commit that undoes the bug.
+
+--------------------------------------------------------------------------------
+STEP 6: Verify Pipeline Recovery
+--------------------------------------------------------------------------------
+
+Navigate to GitLab and observe the new pipeline:
+
+EXPECTED PIPELINE BEHAVIOR:
+PIPELINE STATUS: PASSED (green checkmark)
+
+--------------------------------------------------------------------------------
 EXPECTED RESULT:
-✅ Pipeline detects the bug at the earliest stage (unit tests)
-✅ Build is marked as FAILED (red X)
-✅ No deployment occurs
-✅ Team is notified of the test failure
+--------------------------------------------------------------------------------
+Bug is caught by Jest unit tests at the earliest possible stage
+Pipeline FAILS and stops before any deployment
+Staging environment is NOT affected by buggy code
+After revert, pipeline passes and normal operation resumes
+Git history shows the bug introduction and its fix
 
-PART B: INTRODUCING AN INTEGRATION TEST FAILURE (Backend)
-
-1. Introduce a bug affecting the calculation pipeline
-   ```bash
-   cd lu.uni.e4l.platform.api.dev
-   ```
-   
-   Edit src/main/java/lu/uni/e4l/platform/service/CalculatorService.java:
-   - Modify the calculateSession() method
-   - Comment out variable substitution or formula processing
-
-2. Commit and push
-   ```bash
-   git add .
-   git commit -m "Bug: Break calculation pipeline"
-   git push origin main
-   ```
-
-3. Observe test failure
-   - The "test" job FAILS
-   - CalculationPipelineIntegrationTest shows FAILED tests:
-     * testFullCalculationPipeline FAILED
-     * testExpressionEvaluationEndToEnd FAILED
-   - Error shows calculation results don't match expected values
-
-EXPECTED RESULT:
-✅ Integration tests catch issues that unit tests might miss
-✅ Pipeline stops before deployment
-✅ No broken code reaches staging or production
-
-PART C: INTRODUCING A SYSTEM TEST FAILURE (API)
-
-1. Introduce a bug that affects the API
-   ```bash
-   cd lu.uni.e4l.platform.api.dev
-   ```
-   
-   Edit src/main/java/lu/uni/e4l/platform/controller/SessionController.java:
-   - Modify the @PostMapping("/session") endpoint
-   - Change the return type or response format
-
-2. Push and watch pipeline
-   ```bash
-   git add .
-   git commit -m "Bug: Break session API"
-   git push origin main
-   ```
-
-3. Observe failure in staging
-   - build, test, and package jobs PASS (if syntax is correct)
-   - deploy_staging job SUCCEEDS
-   - system_test job FAILS
-   - Output shows which API test failed (e.g., "Session creation test FAILED")
-   - Error: Expected 200, got 500
-
-EXPECTED RESULT:
-✅ System tests catch API integration issues
-✅ Failure occurs in STAGING stage
-✅ Production deployment is blocked
-✅ Real environment testing validates the deployment
-
-PART D: INTRODUCING A UAT FAILURE
-
-1. Break a critical user workflow
-   ```bash
-   cd lu.uni.e4l.platform.api.dev
-   ```
-   
-   Edit src/main/java/lu/uni/e4l/platform/controller/QuestionnaireController.java:
-   - Change the questionnaire endpoint to return empty data
-   - Or modify session validation to reject valid requests
-
-2. Push and watch pipeline
-   ```bash
-   git add .
-   git commit -m "Bug: Break user workflow"
-   git push origin main
-   ```
-
-3. Observe UAT failure
-   - All previous stages pass
-   - deploy_staging SUCCEEDS
-   - system_test may PASS (if API syntax is correct)
-   - uat_test job FAILS
-   - Output shows: "UAT-2: User can complete questionnaire - FAILED"
-   - Error: User cannot submit valid answers
-
-EXPECTED RESULT:
-✅ UAT tests validate complete end-user scenarios
-✅ User-facing issues are caught before production
-✅ Promotion to production is blocked
-✅ Real user workflows are protected
-
-PART E: FIXING THE BUG
-
-1. Revert the introduced bug
-   ```bash
-   git revert HEAD
-   git push origin main
-   ```
-
-2. Watch pipeline succeed
-   - All stages turn green
-   - Tests pass
-   - Deployment to staging succeeds
-   - Manual production deployment is now available
-
-EXPECTED RESULT:
-✅ Fixed code passes all tests
-✅ Pipeline completes successfully
-✅ Code is ready for production deployment
-
-KEY INSIGHTS:
-- Unit tests catch bugs earliest (cheapest to fix)
-- Integration tests catch component interaction issues
-- System tests validate deployed API behavior
-- UAT tests protect user experience
-- Each test layer provides a safety net
-- Failed tests prevent bad code from progressing
+--------------------------------------------------------------------------------
+KEY OBSERVATIONS:
+--------------------------------------------------------------------------------
+- Jest tests validate Redux reducers and component behavior
+- The pipeline prevents broken frontend code from being deployed
+- Immediate feedback helps developers fix issues quickly
+- Recovery is simple with git revert
 
 ================================================================================
-                   SCENARIO 5: Blue-Green Deployment and Rollback
-================================================================================
-
-DESCRIPTION:
-This scenario demonstrates the blue-green deployment strategy and rollback 
-capability.
-
-PRECONDITIONS:
-- Full pipeline has completed at least once
-- Both blue and green environments exist
-
-STEPS:
-
-1. Identify current active environment
-   ```bash
-   docker exec e4l-nginx-backend-prod cat /etc/nginx/nginx.conf | grep -v "^#" | grep "server e4l-backend"
-   ```
-   
-   Output will show either:
-   - "server e4l-backend-blue-prod:8080" (blue is active)
-   - "server e4l-backend-green-prod:8080" (green is active)
-
-2. Check both environments are running
-   ```bash
-   # Blue environment
-   curl http://localhost:8085/e4lapi/questionnaire
-   
-   # Green environment
-   curl http://localhost:8086/e4lapi/questionnaire
-   ```
-
-3. Deploy a new version
-   - Make a code change and push
-   - Run the pipeline through deploy_production
-   - The inactive environment will be updated
-
-4. Release the new version
-   - Run the "release" job
-   - Traffic switches to the newly deployed environment
-
-5. Verify the switch
-   ```bash
-   docker exec e4l-nginx-backend-prod cat /etc/nginx/nginx.conf | grep -v "^#" | grep "server e4l-backend"
-   ```
-   
-   The active environment should have changed.
-
-6. ROLLBACK (if needed)
-   - Run the "rollback" job
-   - Traffic switches back to the previous environment
-   
-   ```bash
-   # Verify rollback
-   docker exec e4l-nginx-backend-prod cat /etc/nginx/nginx.conf | grep -v "^#" | grep "server e4l-backend"
-   ```
-
-EXPECTED RESULT:
-- Zero-downtime deployment achieved
-- Rollback is instant (no rebuild required)
-- Both environments remain available throughout
-- Functional requirement met: "A deployment can be easily rolled back"
-
-BENEFITS OF BLUE-GREEN DEPLOYMENT:
-- Fast rollback capability (< 5 seconds)
-- Zero downtime during deployments
-- New version can be tested before going live
-- Old version remains available as backup
-
-================================================================================
-                 SCENARIO 6: Making a Code Change Through the Pipeline
-================================================================================
-
-DESCRIPTION:
-This scenario demonstrates making an actual code change to the E4L platform
-and deploying it through the complete pipeline. This shows HOW THE PIPELINE
-FUNCTIONS by tracking a real feature from development to production.
-
-CHANGE: Add a new endpoint to return the API version
-
-JUSTIFICATION:
-This change demonstrates:
-- Version control integration
-- Automated testing of new features
-- CI/CD pipeline execution
-- Safe deployment through staging to production
-- Documentation of the change in scenarios.txt (as required)
-
-STEPS:
-
-1. Create a new controller in the backend
-   ```bash
-   cd lu.uni.e4l.platform.api.dev
-   
-   cat > src/main/java/lu/uni/e4l/platform/controller/VersionController.java << 'EOF'
-   package lu.uni.e4l.platform.controller;
-   
-   import org.springframework.web.bind.annotation.GetMapping;
-   import org.springframework.web.bind.annotation.RestController;
-   import java.util.HashMap;
-   import java.util.Map;
-   
-   @RestController
-   public class VersionController {
-       
-       @GetMapping("/version")
-       public Map<String, String> getVersion() {
-           Map<String, String> version = new HashMap<>();
-           version.put("version", "1.0.1");
-           version.put("name", "E4L Platform API");
-           version.put("build", System.getenv("CI_COMMIT_SHORT_SHA"));
-           return version;
-       }
-   }
-   EOF
-   ```
-
-2. Add a test for the new endpoint (optional but recommended)
-   ```bash
-   # Create test file
-   cat > src/test/java/lu/uni/e4l/platform/controller/VersionControllerTest.java << 'EOF'
-   package lu.uni.e4l.platform.controller;
-   
-   import org.junit.Test;
-   import java.util.Map;
-   import static org.junit.Assert.*;
-   
-   public class VersionControllerTest {
-       
-       @Test
-       public void testGetVersion() {
-           VersionController controller = new VersionController();
-           Map<String, String> version = controller.getVersion();
-           
-           assertNotNull(version);
-           assertEquals("E4L Platform API", version.get("name"));
-           assertEquals("1.0.1", version.get("version"));
-       }
-   }
-   EOF
-   ```
-
-3. Commit and push the change
-   ```bash
-   git add .
-   git commit -m "Feature: Add version endpoint for API versioning"
-   git push origin main
-   ```
-
-4. Watch the pipeline in GitLab CI/CD
-   - Navigate to: http://192.168.56.9/gitlab/<username>/e4l-platform-api/-/pipelines
-   
-   COMMIT STAGE:
-   a) build job: SUCCESS - New controller compiles
-   b) test job: SUCCESS - New test passes, all existing tests pass
-   c) package job: SUCCESS - Docker image includes new endpoint
-
-   STAGING STAGE:
-   d) deploy_staging: SUCCESS - Deployed to http://localhost:8084/e4lapi
-   e) system_test: SUCCESS - All API tests pass
-   f) uat_test: SUCCESS - All user scenarios work
-   g) promote_image: SUCCESS - Image ready for production
-
-5. Test the new endpoint in staging
-   ```bash
-   curl http://localhost:8084/e4lapi/version
-   ```
-   
-   Expected output:
-   ```json
-   {
-     "version": "1.0.1",
-     "name": "E4L Platform API",
-     "build": "abc123f"
-   }
-   ```
-
-6. Deploy to production
-   - Click "Play" button on deploy_production job
-   - New version deployed to inactive environment (blue or green)
-   - Backend available on http://localhost:8085 or 8086
-
-7. Release to production
-   - Click "Play" button on release job
-   - Nginx configuration updated
-   - Traffic switches to new version
-   - Zero downtime achieved
-
-8. Verify in production
-   ```bash
-   curl http://localhost:8080/e4lapi/version
-   ```
-   
-   Expected output:
-   ```json
-   {
-     "version": "1.0.1",
-     "name": "E4L Platform API",
-     "build": "abc123f"
-   }
-   ```
-
-9. Document the change
-   - This scenario itself documents the change
-   - Commit message explains the purpose
-   - Tests verify the functionality
-   - Pipeline logs show deployment history
-
-EXPECTED RESULT:
-✅ New feature flows through complete pipeline
-✅ All automated tests pass
-✅ Feature is tested in staging before production
-✅ Zero-downtime deployment to production
-✅ Change is fully documented
-
-ALTERNATE CHANGE: Frontend Modification
-
-You can also demonstrate a frontend change:
-
-1. Modify the home page
-   ```bash
-   cd lu.uni.e4l.platform.frontend.dev
-   
-   # Add version info to footer
-   # Edit src/index.html or src/js/container/Home.js
-   # Add: <div>Version 1.0.1</div>
-   ```
-
-2. Add a test for the change
-   ```bash
-   # Edit src/tests/presentation/Footer.test.js
-   # Add test to verify version displays
-   ```
-
-3. Push and watch frontend pipeline
-   ```bash
-   git add .
-   git commit -m "Feature: Display version in footer"
-   git push origin main
-   ```
-
-4. Verify in staging (http://localhost:8890)
-5. Deploy to production through manual jobs
-6. Verify in production (http://localhost:8889)
-
-CHANGE DOCUMENTATION REQUIREMENT:
-According to project guidelines, changes must be "duly documented as part of
-the scenarios they help to showcase." This scenario fulfills that requirement
-by documenting:
-- What was changed (version endpoint)
-- Why it was changed (API versioning)
-- How to test it (curl commands)
-- How it moved through the pipeline (stage by stage)
-- How to verify it in each environment
-
-================================================================================
-         SCENARIO 7: Running UAT Tests Against Deployed System
-================================================================================
-
-DESCRIPTION:
-This scenario demonstrates how to run User Acceptance Tests (UAT) manually
-against a deployed system. UAT tests verify the complete system works from
-an end-user perspective.
-
-PRECONDITIONS:
-- Backend deployed to staging: http://localhost:8084/e4lapi
-- Frontend deployed to staging: http://localhost:8890
-- OR production backend: http://localhost:8080/e4lapi
-- OR production frontend: http://localhost:8889
-
-PART A: RUNNING UAT TESTS MANUALLY
-
-1. Navigate to the UAT test directory
-   ```bash
-   cd /home/matthew/devops/devops-e4l/tests/uat
-   ```
-
-2. Ensure the script is executable
-   ```bash
-   chmod +x run_uat_tests.sh
-   ```
-
-3. Set environment variables for staging
-   ```bash
-   export BACKEND_URL="http://localhost:8084/e4lapi"
-   export FRONTEND_URL="http://localhost:8890"
-   ```
-
-4. Run the UAT tests
-   ```bash
-   ./run_uat_tests.sh
-   ```
-
-5. Observe the test execution
-   The script runs 10 UAT scenarios:
-   
-   ```
-   ==============================================
-   E4L Platform - User Acceptance Tests (UAT)
-   ==============================================
-   Backend URL: http://localhost:8084/e4lapi
-   Frontend URL: http://localhost:8890
-   Date: Sat Jan 4 15:30:00 UTC 2026
-   ==============================================
-   
-   UAT 1: User can access the questionnaire
-     Scenario: User visits the E4L website and can see the questionnaire
-     Given: The E4L platform is deployed
-     When: User requests the questionnaire endpoint
-     Then: User receives a list of questions
-     Result: PASSED
-   
-   UAT 2: User can complete the questionnaire
-     Scenario: User completes the energy consumption questionnaire
-     Given: User has access to the questionnaire
-     When: User submits their answers
-     Then: User receives a session ID
-     Result: PASSED
-   
-   UAT 3: User can calculate their energy footprint
-     Scenario: User calculates their energy consumption
-     Given: User has a valid session
-     When: User requests energy calculation
-     Then: User receives calculation results
-     Result: PASSED
-   
-   [... continues for all 10 UATs ...]
-   
-   ==============================================
-   Test Summary:
-   ==============================================
-   Total Tests: 10
-   Passed: 10 (100%)
-   Failed: 0 (0%)
-   ==============================================
-   Overall Result: SUCCESS
-   ==============================================
-   ```
-
-EXPECTED RESULT:
-✅ All 10 UAT tests pass (100%)
-✅ Complete user workflows are verified
-✅ Both backend and frontend are tested together
-✅ End-to-end scenarios work correctly
-
-PART B: RUNNING UAT AGAINST PRODUCTION
-
-1. Set environment variables for production
-   ```bash
-   export BACKEND_URL="http://localhost:8080/e4lapi"
-   export FRONTEND_URL="http://localhost:8889"
-   ```
-
-2. Run the tests
-   ```bash
-   ./run_uat_tests.sh
-   ```
-
-3. Verify production system
-   - Same 10 tests run against production
-   - Ensures production is working correctly
-   - Can be used as smoke test after deployment
-
-PART C: UAT TEST DESCRIPTIONS
-
-The 10 UAT scenarios cover:
-
-1. **UAT-1: Questionnaire Access** (Backend only)
-   - Verifies: GET /questionnaire returns 200 with question data
-   - User story: As a user, I want to access the energy questionnaire
-   - Tests: Backend API with proper answer structure
-   - Note: Uses possibleAnswer structure: {"possibleAnswer": {"id": N}}
-
-2. **UAT-2: Questionnaire Completion** (Backend only)
-   - Verifies: POST /session with valid answers creates session
-   - User story: As a user, I want to submit my answers
-
-3. **UAT-3: Energy Calculation** (Backend only)
-   - Verifies: POST /calculate/energyConsumption returns results
-   - User story: As a user, I want to see my energy footprint
-
-4. **UAT-4: Kids Mode** (Backend only)
-   - Verifies: Kids can use questionnaire (iskid: true)
-   - User story: As a child, I want a kid-friendly questionnaire
-
-5. **UAT-5: Statistics** (Backend only)
-   - Tests: Backend session management with kids flag
-   - Verifies: GET /responses/count returns response statistics
-   - User story: As a user, I want to see how many people participated
-
-6. **UAT-6: Seminar Mode** (Backend only)
-   - Verifies: GET /calculate/seminar/{code} validates seminar codes
-   - User story: As a seminar participant, I want to use my code
-
-7. **UAT-7: Contact Form** (Backend only)
-   - Verifies: POST /contact accepts contact submissions
-   - User story: As a user, I want to contact the E4L team
-
-8. **UAT-8: Frontend Accessibility** (Backend only)
-   - Verifies: Frontend URL returns 200
-   - User story: As a user, I want to access the website
-
-9. **UAT-9: Error Handling** (Backend only)
-   - Verifies: API handles malformed requests gracefully
-   - User story: As a user, I expect helpful error messages
-
-10. **UAT-10: Complete User Journey (E2E)** (Backend only)
-    - Verifies: Full workflow from questionnaire to results
-    - User story: As a user, I want to complete the entire process
-
-PART D: UAT INTEGRATION IN CI/CD PIPELINE
-
-The UAT tests run automatically in the GitLab CI/CD pipeline:
-
-1. Pipeline stage: STAGING
-2. Job name: uat_test
-3. Runs after: deploy_staging
-4. Dependencies: Backend and frontend must be deployed
-5. Pass threshold: 70% (7/10 tests must pass)
-
-Pipeline configuration (.gitlab-ci.yml):
-```yaml
-uat_test:
-  stage: staging
-  script:
-    - chmod +x ./tests/uat_tests.sh
-    - export BACKEND_URL="http://localhost:8084/e4lapi"
-    - export FRONTEND_URL="http://localhost:8890"
-    - ./tests/uat_tests.sh
-  needs:
-    - job: deploy_staging
-```
-
-PART E: TROUBLESHOOTING UAT FAILURES
-
-If UAT tests fail:
-
-1. Check backend is running:
-   ```bash
-   curl http://localhost:8084/e4lapi/questionnaire
-   ```
-
-2. Check frontend is running:
-   ```bash
-   curl http://localhost:8890
-   ```
-
-3. Check Docker containers:
-   ```bash
-   docker ps | grep e4l
-   ```
-
-4. Review test logs for specific failure:
-   - Each UAT prints scenario details
-   - Failed tests show error messages
-   - HTTP response codes indicate API issues
-
-5. Run individual curl commands to debug:
-   ```bash
-   # Test questionnaire endpoint
-   curl -v http://localhost:8084/e4lapi/questionnaire
-   
-   # Test session creation with valid data
-   curl -X POST -H "Content-Type: application/json" \
-     -d '{"dateTime":"2026-01-04T15:00:00Z","answers":[{"question":1,"possibleAnswers":[5]},{"question":2,"possibleAnswers":[9]},{"question":16,"possibleAnswers":[94]}],"iskid":false}' \
-     http://localhost:8084/e4lapi/session
-   ```
-
-EXPECTED RESULT:
-✅ UAT tests verify complete user journeys
-✅ Tests can be run manually for debugging
-✅ Tests run automatically in pipeline
-✅ Production readiness is validated
-
-================================================================================
-                   SCENARIO 5: Blue-Green Deployment and Rollback
-================================================================================
-
-DESCRIPTION:
-This scenario demonstrates making an actual code change to the E4L platform
-and deploying it through the complete pipeline.
-
-CHANGE: Add a new endpoint to return the API version
-
-STEPS:
-
-1. Create a new controller in the backend
-   ```bash
-   cd lu.uni.e4l.platform.api.dev
-   
-   cat > src/main/java/lu/uni/e4l/platform/controller/VersionController.java << 'EOF'
-   package lu.uni.e4l.platform.controller;
-   
-   import org.springframework.web.bind.annotation.GetMapping;
-   import org.springframework.web.bind.annotation.RestController;
-   import java.util.HashMap;
-   import java.util.Map;
-   
-   @RestController
-   public class VersionController {
-       
-       @GetMapping("/version")
-       public Map<String, String> getVersion() {
-           Map<String, String> version = new HashMap<>();
-           version.put("version", "1.0.1");
-           version.put("name", "E4L Platform API");
-           version.put("build", System.getenv("CI_COMMIT_SHORT_SHA"));
-           return version;
-       }
-   }
-   EOF
-   ```
-
-2. Add a test for the new endpoint
-   ```bash
-   # Add to ApiSystemTest.java
-   @Test
-   public void getVersion_ShouldReturnVersionInfo() throws Exception {
-       mockMvc.perform(get("/version")
-               .contentType(MediaType.APPLICATION_JSON))
-               .andExpect(status().isOk())
-               .andExpect(jsonPath("$.name").value("E4L Platform API"));
-   }
-   ```
-
-3. Commit and push
-   ```bash
-   git add .
-   git commit -m "Feature: Add version endpoint"
-   git push origin main
-   ```
-
-4. Watch the pipeline
-   - All tests should pass (including the new test)
-   - Image is built and pushed
-   - Staging deployment succeeds
-   - System tests include the new endpoint
-
-5. Test in staging
-   ```bash
-   curl http://localhost:8084/e4lapi/version
-   # Returns: {"version":"1.0.1","name":"E4L Platform API","build":"..."}
-   ```
-
-6. Deploy to production
-   - Trigger deploy_production job
-   - Trigger release job
-
-7. Verify in production
-   ```bash
-   curl http://localhost:8080/e4lapi/version
-   # Returns: {"version":"1.0.1","name":"E4L Platform API","build":"..."}
-   ```
-
-EXPECTED RESULT:
-✅ New feature flows through complete pipeline
-✅ All automated tests pass
-✅ Feature is tested in staging before production
-✅ Zero-downtime deployment to production
-✅ Change is fully documented
-
-CHANGE DOCUMENTATION REQUIREMENT:
-According to project guidelines, changes must be "duly documented as part of
-the scenarios they help to showcase." This scenario fulfills that requirement
-by documenting:
-- What was changed (version endpoint)
-- Why it was changed (API versioning)
-- How to test it (curl commands)
-- How it moved through the pipeline (stage by stage)
-- How to verify it in each environment
-
-ALTERNATE CHANGE: Frontend Modification
-
-You can also demonstrate a frontend change:
-```bash
-cd lu.uni.e4l.platform.frontend.dev
-# Add version info to footer or home page
-# Push and watch frontend pipeline execute
-# Verify in staging (http://localhost:8890)
-# Deploy to production
-# Verify in production (http://localhost:8889)
-```
-
-================================================================================
-         SCENARIO 7: Running UAT Tests Against Deployed System
-================================================================================
-
-DESCRIPTION:
-This scenario demonstrates how to run User Acceptance Tests (UAT) manually
-against a deployed system. UAT tests verify the complete system works from
-an end-user perspective.
-
-PRECONDITIONS:
-- Backend deployed to staging: http://localhost:8084/e4lapi
-- Frontend deployed to staging: http://localhost:8890
-- OR production backend: http://localhost:8080/e4lapi
-- OR production frontend: http://localhost:8889
-
-PART A: RUNNING UAT TESTS MANUALLY
-
-1. Navigate to the UAT test directory
-   ```bash
-   cd /home/matthew/devops/devops-e4l/tests/uat
-   ```
-
-2. Ensure the script is executable
-   ```bash
-   chmod +x run_uat_tests.sh
-   ```
-
-3. Set environment variables for staging
-   ```bash
-   export BACKEND_URL="http://localhost:8084/e4lapi"
-   export FRONTEND_URL="http://localhost:8890"
-   ```
-
-4. Run the UAT tests
-   ```bash
-   ./run_uat_tests.sh
-   ```
-
-5. Observe the test execution
-   The script runs 10 UAT scenarios:
-   
-   ```
-   ==============================================
-   E4L Platform - User Acceptance Tests (UAT)
-   ==============================================
-   Backend URL: http://localhost:8084/e4lapi
-   Frontend URL: http://localhost:8890
-   Date: Sat Jan 4 15:30:00 UTC 2026
-   ==============================================
-   
-   UAT 1: User can access the questionnaire
-     Scenario: User visits the E4L website and can see the questionnaire
-     Given: The E4L platform is deployed
-     When: User requests the questionnaire endpoint
-     Then: User receives a list of questions
-     Result: PASSED
-   
-   UAT 2: User can complete the questionnaire
-     Scenario: User completes the energy consumption questionnaire
-     Given: User has access to the questionnaire
-     When: User submits their answers
-     Then: User receives a session ID
-     Result: PASSED
-   
-   [... continues for all 10 UATs ...]
-   
-   ==============================================
-   Test Summary:
-   ==============================================
-   Total Tests: 10
-   Passed: 10 (100%)
-   Failed: 0 (0%)
-   ==============================================
-   Overall Result: SUCCESS
-   ==============================================
-   ```
-
-EXPECTED RESULT:
-✅ All 10 UAT tests pass (100%)
-✅ Complete user workflows are verified
-✅ Both backend and frontend are tested together
-✅ End-to-end scenarios work correctly
-
-PART B: RUNNING UAT AGAINST PRODUCTION
-
-1. Set environment variables for production
-   ```bash
-   export BACKEND_URL="http://localhost:8080/e4lapi"
-   export FRONTEND_URL="http://localhost:8889"
-   ```
-
-2. Run the tests
-   ```bash
-   ./run_uat_tests.sh
-   ```
-
-3. Verify production system
-   - Same 10 tests run against production
-   - Ensures production is working correctly
-   - Can be used as smoke test after deployment
-
-PART C: UAT TEST DESCRIPTIONS
-
-The 10 UAT scenarios cover:
-
-1. **UAT-1: Questionnaire Access**
-   - Verifies: GET /questionnaire returns 200 with question data
-   - User story: As a user, I want to access the energy questionnaire
-
-2. **UAT-2: Questionnaire Completion**
-   - Verifies: POST /session with valid answers creates session
-   - User story: As a user, I want to submit my answers
-
-3. **UAT-3: Energy Calculation**
-   - Verifies: POST /calculate/energyConsumption returns results
-   - User story: As a user, I want to see my energy footprint
-
-4. **UAT-4: Kids Mode**
-   - Verifies: Kids can use questionnaire (iskid: true)
-   - User story: As a child, I want a kid-friendly questionnaire
-
-5. **UAT-5: Statistics**
-   - Verifies: GET /responses/count returns response statistics
-   - User story: As a user, I want to see how many people participated
-
-6. **UAT-6: Seminar Mode**
-   - Verifies: GET /calculate/seminar/{code} validates seminar codes
-   - User story: As a seminar participant, I want to use my code
-
-7. **UAT-7: Contact Form**
-   - Verifies: POST /contact accepts contact submissions
-   - User story: As a user, I want to contact the E4L team
-
-8. **UAT-8: Frontend Accessibility**
-   - Verifies: Frontend URL returns 200
-   - User story: As a user, I want to access the website
-
-9. **UAT-9: Error Handling**
-   - Verifies: API handles malformed requests gracefully
-   - User story: As a user, I expect helpful error messages
-
-10. **UAT-10: Complete User Journey (E2E)**
-    - Verifies: Full workflow from questionnaire to results
-    - User story: As a user, I want to complete the entire process
-
-PART D: UAT INTEGRATION IN CI/CD PIPELINE
-
-The UAT tests run automatically in the GitLab CI/CD pipeline:
-
-1. Pipeline stage: STAGING
-2. Job name: uat_test
-3. Runs after: deploy_staging
-4. Dependencies: Backend and frontend must be deployed
-5. Pass threshold: 70% (7/10 tests must pass)
-
-Pipeline configuration (.gitlab-ci.yml):
-```yaml
-uat_test:
-  stage: staging
-  script:
-    - chmod +x ./tests/uat_tests.sh
-    - export BACKEND_URL="http://localhost:8084/e4lapi"
-    - export FRONTEND_URL="http://localhost:8890"
-    - ./tests/uat_tests.sh
-  needs:
-    - job: deploy_staging
-```
-
-PART E: TROUBLESHOOTING UAT FAILURES
-
-If UAT tests fail:
-
-1. Check backend is running:
-   ```bash
-   curl http://localhost:8084/e4lapi/questionnaire
-   ```
-
-2. Check frontend is running:
-   ```bash
-   curl http://localhost:8890
-   ```
-
-3. Check Docker containers:
-   ```bash
-   docker ps | grep e4l
-   ```
-
-4. Review test logs for specific failure:
-   - Each UAT prints scenario details
-   - Failed tests show error messages
-   - HTTP response codes indicate API issues
-
-5. Run individual curl commands to debug:
-   ```bash
-   # Test questionnaire endpoint
-   curl -v http://localhost:8084/e4lapi/questionnaire
-   
-   # Test session creation with valid data
-   curl -X POST -H "Content-Type: application/json" \
-     -d '{"dateTime":"2026-01-04T15:00:00Z","answers":[{"question":1,"possibleAnswers":[5]},{"question":2,"possibleAnswers":[9]},{"question":16,"possibleAnswers":[94]}],"iskid":false}' \
-     http://localhost:8084/e4lapi/session
-   ```
-
-EXPECTED RESULT:
-✅ UAT tests verify complete user journeys
-✅ Tests can be run manually for debugging
-✅ Tests run automatically in pipeline
-✅ Production readiness is validated
-
-================================================================================
-                              TEST SUMMARY
-================================================================================
-
-TOTAL AUTOMATED TESTS:
-- Backend Unit Tests: 15+ tests
-  * ExpressionEvaluatorTest (6 tests)
-  * CalculatorServiceTest (2+ tests)
-  * ContextLoadsTest (1 test)
-  
-- Backend Integration Tests: 6+ tests
-  * CalculationPipelineIntegrationTest (6 tests)
-  
-- Backend System Tests: 11 tests
-  * API availability tests (4 tests)
-  * Session management tests (3 tests)
-  * Security tests (2 tests)
-  * Contact form test (1 test)
-  * UAT preview test (1 test)
-
-- Frontend Unit Tests: 43 tests
-  * questionnaireReducer.test.js (10 tests)
-  * answerReducer.test.js (13 tests)
-  * questionnaireAction.test.js (11 tests)
-  * answerAction.test.js (9 tests)
-  
-- Frontend Integration Tests: 10 tests
-  * store.test.js (10 tests)
-
-- User Acceptance Tests: 10 tests
-  * UAT-1 to UAT-10 (complete user scenarios)
----------------------------------
-TOTAL: ~95 automated tests
-
-TEST EXECUTION IN PIPELINE:
-1. Commit Stage:
-   - Build: Compiles the application
-   - Test: Runs ALL unit and integration tests
-   - Package: Builds Docker image if tests pass
-
-2. Staging Stage:
-   - Deploy: Deploys to staging environment
-   - System Test: Tests API endpoints against deployed system
-   - UAT Test: Tests complete user workflows
-   - Promote: Tags image for production if all tests pass
-
-3. Production Stage:
-   - Deploy (Manual): Deploys to blue/green environment
-   - Release (Manual): Switches traffic to new deployment
-   - Rollback (Manual): Reverts to previous deployment if issues
-
-TEST COVERAGE BY REQUIREMENT:
-✅ Unit Tests: Required (at least 1) - Have 58+ tests
-✅ Integration Tests: Required (at least 1) - Have 16+ tests
-✅ User Acceptance Tests: Required (at least 1) - Have 10 tests
-✅ System Tests: Bonus - Have 11 tests
-
-TESTS SHOW PASSING AND FAILING:
-✅ Scenario 3: Documents tests passing in normal operation
-✅ Scenario 4: Documents tests failing when bugs introduced
-✅ Pipeline prevents faulty code from reaching production
-
-PIPELINE STAGES:
-1. Commit Stage: Build, Test, Package
-2. Staging Stage: Deploy, System Test, UAT, Promote
-3. Production Stage: Deploy (Blue/Green), Release, Rollback
-
-================================================================================
-                           END OF SCENARIOS.TXT
+                         END OF SCENARIOS.TXT
 ================================================================================
