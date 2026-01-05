@@ -68,7 +68,7 @@ vagrant up --provision-with "fully_automated"
     - Create and register GitLab runners (docker and shell runners for both projects)
     - Revoke generated tokens for security reasons
 
-If these step succeeded, you can **skip** the next one and go directly to the `Scenarios` paragraph.
+If these step succeeded, you can **skip** the next paragraph (partially automated provisioning) and go directly to the `Scenarios` paragraph.
 
 ## Create DevOps environment (Partially automated - optional)
 
