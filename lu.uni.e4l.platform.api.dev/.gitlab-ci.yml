@@ -120,19 +120,24 @@ automated_system_test:
   - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   stage: staging
-  image: alpine/bruno:latest
+  image: 
+    name: alpine/bruno:latest
+    entrypoint: [""]
   tags:
     - docker-runner
   needs:
     - job: deploy_staging
   script:
-    - bru run ./tests/api-tests --env staging --output ./tests/results --format junit
+    - cd tests/api-tests
+    - mkdir -p ../results
+    - bru run --env staging --reporter-junit ../results/results.xml
+    - ls -la ../results/
   artifacts:
     when: always
     paths:
       - tests/results/
     reports:
-      junit: tests/results/*.xml
+      junit: tests/results/results.xml
     expire_in: 1 week
 
 # promote_image:
