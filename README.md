@@ -317,12 +317,15 @@ sudo gitlab-runner restart
 The commit and staging stages are fully automated while the production stage is manual.
 
 ### Precondition:
-Clone both repositories from gitlab on your local machine, then configure both of them with the commands:
-```bash
-git config --local user.name "e4lowner"
-git config --local user.email "owner@owner.com"
-```
-**Note:** Using the repositories in this folder is possible but not suggested, as the primary approach above offers a much simpler  configuration.
+
+- For **partially automated provisioning**, use the repositories included in this directory, they are already configured.
+
+- For **fully automated provisioning**, the preferred method is to clone the repositories from GitLab and run the following configuration:
+  ```bash
+  git config --local user.name "e4lowner"
+  git config --local user.email "owner@owner.com"
+  ```
+  **Warning:** Using the local folders is possible but not suggested due to increased configuration complexity.
 
 ---
 
@@ -330,7 +333,7 @@ Perform the following tests:
 
 ### 1. Backend
 
-1. Modify something in the cloned repository and push it to Gitlab (username: `e4lowner`, password: `Verystrongpassword2026`).
+1. Modify something in the local repository and push it to Gitlab (username: `e4lowner`, password: `Verystrongpassword2026`).
 2. Verify that the commit and staging stages complete without problems (assuming that no bugs were introduced in the first place)
 3. Check the container registry and see if the image has been pushed
 4. Access the staging backend on `http://localhost:8084/e4lapi/questionnaire` from your browser (a json page should be returned)
@@ -346,7 +349,7 @@ Perform the following tests:
 
 ### 2. Frontend
 
-1. Modify something in the cloned repository and push it to Gitlab (username: `e4lowner`, password: `Verystrongpassword2026`).
+1. Modify something in the local repository and push it to Gitlab (username: `e4lowner`, password: `Verystrongpassword2026`).
 2. Verify that the commit and staging stages complete without problems (assuming that no bugs were introduced in the first place)
 3. Check the container registry and see if the image has been pushed
 4. Access the staging frontend on `http://localhost:8884/` from your browser
